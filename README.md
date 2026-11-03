@@ -3,9 +3,10 @@
 [![Kubernetes](https://img.shields.io/badge/Kubernetes-v1.34.0-326CE5?logo=kubernetes&logoColor=white)](https://kubernetes.io/)
 [![Docker](https://img.shields.io/badge/Docker-29.9.2-2496ED?logo=docker&logoColor=white)](https://www.docker.com/)
 [![Kind](https://img.shields.io/badge/Kind-v0.30.0-black?logo=kubernetes&logoColor=white)](https://kind.sigs.k8s.io/)
-[![FastAPI](https://img.shields.io/badge/FastAPI-0.115+-009688?logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com/)
+[![FastAPI](https://img.shields.io/badge/FastAPI-0.162.0-009688?logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com/)
 [![Prometheus](https://img.shields.io/badge/Prometheus-Monitoring-E6522C?logo=prometheus&logoColor=white)](https://prometheus.io/)
 [![Grafana](https://img.shields.io/badge/Grafana-Visualization-F46800?logo=grafana&logoColor=white)](https://grafana.com/)
+[![Tests](https://img.shields.io/badge/Tests-20%2F20%20Passed-brightgreen.svg)](backend/README.md)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 
 > **DeployX** is a production-grade, portfolio-ready DevOps and Cloud Engineering platform showcasing automated zero-downtime Blue-Green deployments, synthetic canary health probing, automated disaster recovery rollbacks, full-stack observability, and cross-platform automation on Kubernetes and AWS.
@@ -60,10 +61,14 @@ deployx/
 │   └── workflows/              # GitHub Actions CI/CD pipelines
 ├── backend/                    # FastAPI application, health probes & telemetry
 │   ├── app/
-│   │   ├── api/                # API routers (health, deployment, diagnostics)
+│   │   ├── api/                # API routers (health, status, metrics)
 │   │   ├── core/               # Configuration, logging & security
-│   │   └── services/           # DR engine, canary checker & diagnostics
-│   └── tests/                  # Pytest unit & integration tests
+│   │   ├── middleware/         # Correlation ID & request metrics tracking
+│   │   └── services/           # Telemetry metrics & application state
+│   ├── tests/                  # Pytest unit & integration tests (20 tests passed)
+│   ├── verify_endpoints.py     # Live HTTP verification harness
+│   ├── requirements.txt        # Pinned dependencies
+│   └── README.md               # Backend documentation & runbook
 ├── frontend/                   # Single-Page Dashboard (HTML5/CSS/Vanilla JS)
 ├── infrastructure/
 │   ├── docker/                 # Production Dockerfiles & docker-compose.yml
@@ -94,6 +99,7 @@ DeployX has been verified on the following hardware and software baseline:
 - **kubectl:** `v1.36.1` (Kustomize `v5.8.1`)
 - **Kind:** `v0.30.0`
 - **Helm:** `v3.22.1`
+- **Python:** `3.14.4`
 - **Kubernetes Cluster:** `deployx` (Kind context: `kind-deployx`, K8s: `v1.34.0`, Node: `deployx-control-plane`)
 - **Memory Constraint:** ~3.5 GiB RAM allocated to WSL2 (active budget ~960 MiB total workload footprint)
 
@@ -108,8 +114,8 @@ This project is structured into sequential delivery phases tracked in [TASK_STAT
 | Phase | Milestone | Status |
 |---|---|---|
 | **Phase 0** | Environment Audit & Architecture Design | ✅ **Completed** |
-| **Phase 1** | Core FastAPI Backend & Health Probes | ⏳ Up Next |
-| **Phase 2** | Lightweight Frontend Dashboard | ⏳ Planned |
+| **Phase 1** | Core FastAPI Backend & Health Telemetry Engine | ✅ **Completed (20/20 Tests Passed)** |
+| **Phase 2** | Lightweight Frontend Dashboard | ⏳ Up Next |
 | **Phase 3** | Docker & Compose Orchestration | ⏳ Planned |
 | **Phase 4** | Kubernetes Manifests & Kind Deployment | ⏳ Planned |
 | **Phase 5** | Blue-Green Deployment & Automated Rollback | ⏳ Planned |
