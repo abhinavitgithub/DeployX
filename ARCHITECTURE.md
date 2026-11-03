@@ -1,9 +1,9 @@
 # DeployX – Architecture Specification Document
 
-**Project:** DeployX – Intelligent Cloud Deployment & Disaster Recovery Platform  
-**Author:** Senior DevOps Engineer & AWS Cloud Architect  
-**Version:** 1.0.0-draft  
-**Target Environments:** Local Kubernetes (Kind / Docker) & Target Cloud (AWS)  
+**Project:** DeployX – Intelligent Cloud Deployment & Disaster Recovery Platform
+**Author:** Senior DevOps Engineer & AWS Cloud Architect
+**Version:** 1.0.0-draft
+**Target Environments:** Local Kubernetes (Kind / Docker) & Target Cloud (AWS)
 
 ---
 

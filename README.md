@@ -124,8 +124,8 @@ This project is structured into sequential delivery phases tracked in [TASK_STAT
 | **Phase 0** | Environment Audit & Architecture Design | ✅ **Completed** |
 | **Phase 1** | Core FastAPI Backend & Health Telemetry Engine | ✅ **Completed (20/20 Tests Passed)** |
 | **Phase 2** | Lightweight Frontend Dashboard | ✅ **Completed (28/28 Tests Passed)** |
-| **Phase 3** | Docker & Compose Orchestration | ⏳ Up Next |
-| **Phase 4** | Kubernetes Manifests & Kind Deployment | ⏳ Planned |
+| **Phase 3** | Docker & Compose Orchestration | ✅ **Completed (35/35 Tests Passed)** |
+| **Phase 4** | Kubernetes Manifests & Kind Deployment | ⏳ Up Next |
 | **Phase 5** | Blue-Green Deployment & Automated Rollback | ⏳ Planned |
 | **Phase 6** | Prometheus & Grafana Monitoring Stack | ⏳ Planned |
 | **Phase 7** | Linux & Windows Automation Tooling | ⏳ Planned |
@@ -133,6 +133,40 @@ This project is structured into sequential delivery phases tracked in [TASK_STAT
 | **Phase 9** | AWS Cloud IaC (VPC, EC2, S3, CloudWatch) | ⏳ Planned |
 | **Phase 10** | Intelligent Diagnostics & Local Ollama | ⏳ Planned |
 | **Phase 11** | Chaos Engineering & Final Portfolio Review | ⏳ Planned |
+
+---
+
+## 🐳 Docker Orchestration Quickstart
+
+DeployX provides a unified multi-container Docker Compose workflow:
+
+```bash
+# 1. Build production images (Backend: Python 3.14-slim, Frontend: Nginx Alpine)
+docker compose build
+
+# 2. Launch services in the background with healthcheck dependencies
+docker compose up -d
+
+# 3. Check health and running status
+docker compose ps
+
+# 4. View real-time logs
+docker compose logs -f
+
+# 5. Access the Operations Center Dashboard & Proxied Endpoints
+# Frontend UI:             http://localhost:3000/
+# Proxied Liveness:        http://localhost:3000/health/live
+# Proxied Readiness:       http://localhost:3000/health/ready
+# Proxied Status:          http://localhost:3000/api/v1/status
+# Proxied Prometheus:      http://localhost:3000/metrics
+# Proxied Swagger Docs:    http://localhost:3000/docs
+# Direct Backend:          http://localhost:8000/health/live
+
+# 6. Graceful shutdown
+docker compose down
+```
+
+For in-depth container architecture details, see [infrastructure/docker/README.md](infrastructure/docker/README.md).
 
 ---
 

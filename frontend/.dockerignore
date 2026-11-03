@@ -1,0 +1,12 @@
+# Test scripts & Node modules
+test_*.js
+*.test.js
+node_modules/
+package-lock.json
+
+# Documentation & source control
+README.md
+.git/
+.gitignore
+.DS_Store
+*.log

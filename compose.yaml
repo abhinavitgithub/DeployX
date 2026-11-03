@@ -1,0 +1,55 @@
+# DeployX — Multi-Container Docker Compose Orchestration
+# Manages backend telemetry service and Nginx frontend reverse proxy
+
+services:
+  backend:
+    build:
+      context: backend
+      dockerfile: Dockerfile
+    image: deployx-backend:latest
+    container_name: deployx-backend
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      - DEPLOYX_APP_NAME=deployx-backend
+      - DEPLOYX_ENVIRONMENT=development
+      - DEPLOYX_HOST=0.0.0.0
+      - DEPLOYX_PORT=8000
+      - DEPLOYX_LOG_LEVEL=INFO
+      - DEPLOYX_VERSION=1.0.0
+      - PYTHONUNBUFFERED=1
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://127.0.0.1:8000/health/live"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+      start_period: 5s
+    networks:
+      - deployx-network
+
+  frontend:
+    build:
+      context: frontend
+      dockerfile: Dockerfile
+    image: deployx-frontend:latest
+    container_name: deployx-frontend
+    restart: unless-stopped
+    ports:
+      - "3000:80"
+    depends_on:
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:80/"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+      start_period: 5s
+    networks:
+      - deployx-network
+
+networks:
+  deployx-network:
+    name: deployx-network
+    driver: bridge

@@ -1,0 +1,55 @@
+# DeployX - Docker Ignore File (Root Build Context)
+# Prevent unnecessary files, virtual environments, caches, and secrets from entering container images.
+
+# Version Control & Metadata
+.git/
+.gitignore
+.github/
+
+# Virtual Environments
+.venv/
+venv/
+ENV/
+env/
+
+# Python Bytecode & Caches
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+htmlcov/
+.coverage
+coverage.xml
+
+# Secrets & Credentials
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.crt
+*.pfx
+kubeconfig*
+credentials*
+token.json
+
+# Test Artifacts & Logs
+*.log
+logs/
+tmp/
+temp/
+scratch/
+
+# Node / JS
+node_modules/
+
+# Infrastructure & Automation not needed in runtime images
+infrastructure/aws/
+infrastructure/kubernetes/
+infrastructure/monitoring/
+scripts/
+docs/
+tests/

@@ -1,0 +1,29 @@
+# Python Bytecode and cache
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Test & Linting artifacts
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+tests/
+
+# Virtual environments
+.venv/
+env/
+venv/
+ENV/
+
+# Environment files and credentials
+.env
+.env.*
+!.env.example
+
+# Version control & OS metadata
+.git/
+.gitignore
+.DS_Store
+*.log

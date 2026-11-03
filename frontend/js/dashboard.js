@@ -321,7 +321,7 @@
 
     // API URL Input change
     if (elements.apiUrlInput) {
-      elements.apiUrlInput.value = DeployXAPI.getBaseUrl();
+      elements.apiUrlInput.value = DeployXAPI.getBaseUrl() || (typeof window !== 'undefined' && window.location.origin ? window.location.origin : '');
       elements.apiUrlInput.addEventListener('change', (e) => {
         const newUrl = e.target.value.trim();
         if (newUrl) {

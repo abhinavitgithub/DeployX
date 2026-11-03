@@ -11,12 +11,18 @@ const DeployXAPI = (function () {
   const DEFAULT_TIMEOUT_MS = 6000;
 
   function getDefaultBaseUrl() {
-    // If the dashboard is hosted on port 8000 alongside the backend, use origin
-    if (window.location.port === '8000') {
-      return window.location.origin;
+    // Node.js test environments or non-browser contexts
+    if (typeof window === 'undefined') {
+      return 'http://localhost:8000';
     }
-    // Default to standard local FastAPI backend port
-    return 'http://localhost:8000';
+    // Local filesystem preview cannot use relative origin paths
+    if (window.location.protocol === 'file:') {
+      return 'http://localhost:8000';
+    }
+    // In Docker (and production), Nginx serves the frontend and reverse-proxies
+    // /health/, /api/, /metrics, /docs, /openapi.json on the SAME origin.
+    // Returning empty string "" produces same-origin relative URLs (/health/live, etc.).
+    return '';
   }
 
   let baseUrl = localStorage.getItem(STORAGE_KEY) || getDefaultBaseUrl();
@@ -51,6 +57,14 @@ const DeployXAPI = (function () {
       });
       clearTimeout(timeoutId);
 
+      // Automatic fallback for standalone static dev (e.g. python3 -m http.server 3000):
+      // If same-origin relative request returns 404, fallback to direct backend at http://localhost:8000.
+      if (!baseUrl && response.status === 404 && endpoint.startsWith('/health/')) {
+        console.warn(`[DeployX API] Same-origin endpoint ${endpoint} returned 404. Falling back to http://localhost:8000 for standalone dev.`);
+        baseUrl = 'http://localhost:8000';
+        return await fetchWithTimeout(endpoint, options);
+      }
+
       if (!response.ok && endpoint !== '/health/ready') {
         // Special case: /health/ready returns 503 when degraded, which is still valid health data
         throw new Error(`HTTP ${response.status} from ${endpoint}`);
@@ -59,6 +73,12 @@ const DeployXAPI = (function () {
       return response;
     } catch (err) {
       clearTimeout(timeoutId);
+      // If same-origin network fetch failed and baseUrl is relative, fallback to localhost:8000
+      if (!baseUrl && err.name !== 'AbortError') {
+        console.warn(`[DeployX API] Same-origin request failed (${err.message}). Falling back to http://localhost:8000.`);
+        baseUrl = 'http://localhost:8000';
+        return await fetchWithTimeout(endpoint, options);
+      }
       if (err.name === 'AbortError') {
         throw new Error(`Request timed out after ${options.timeoutMs || DEFAULT_TIMEOUT_MS}ms for ${endpoint}`);
       }
