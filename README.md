@@ -6,7 +6,7 @@
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.162.0-009688?logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com/)
 [![Prometheus](https://img.shields.io/badge/Prometheus-Monitoring-E6522C?logo=prometheus&logoColor=white)](https://prometheus.io/)
 [![Grafana](https://img.shields.io/badge/Grafana-Visualization-F46800?logo=grafana&logoColor=white)](https://grafana.com/)
-[![Tests](https://img.shields.io/badge/Tests-20%2F20%20Passed-brightgreen.svg)](backend/README.md)
+[![Tests](https://img.shields.io/badge/Tests-28%2F28%20Passed-brightgreen.svg)](backend/README.md)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 
 > **DeployX** is a production-grade, portfolio-ready DevOps and Cloud Engineering platform showcasing automated zero-downtime Blue-Green deployments, synthetic canary health probing, automated disaster recovery rollbacks, full-stack observability, and cross-platform automation on Kubernetes and AWS.
@@ -20,6 +20,7 @@ Modern cloud architectures demand continuous delivery without sacrificing reliab
 - **Automated Disaster Recovery (DR) Rollback:** Instant detection of degraded latency or error spikes during releases, automatically reverting traffic to the stable release within seconds.
 - **Micro-Footprint Engineering:** Engineered to operate completely within constrained development environments (~3.5 GiB RAM in WSL2/Docker) with zero paid cloud API dependencies.
 - **Unified Observability:** Granular RED metrics (Rate, Errors, Duration) exported to Prometheus and visualized on real-time Grafana dashboards.
+- **Real-Time Operations Center:** Dark-themed, responsive DevOps single-page dashboard with zero Node.js build overhead.
 - **Intelligent Diagnostics:** Deterministic Kubernetes failure signature analysis (CrashLoopBackOff, OOMKilled) with optional local LLM integration via Ollama.
 - **Cross-Platform Automation:** Complete parity with dual native automation suites for Linux (Bash) and Windows (PowerShell).
 
@@ -29,7 +30,8 @@ Modern cloud architectures demand continuous delivery without sacrificing reliab
 
 ```mermaid
 flowchart LR
-    Client([Operator / Browser]) --> Router[Traffic Router / K8s Service]
+    Client([Operator / Web Browser]) --> Router[Traffic Router / K8s Service]
+    Frontend([DeployX Dashboard<br/>Port 3000]) -. Poll Telemetry .-> Router
     
     subgraph K8s["Kubernetes (Kind Cluster: deployx)"]
         Router -. 100% Traffic .-> Blue[Blue Deployment<br/>Stable v1.0]
@@ -65,11 +67,17 @@ deployx/
 │   │   ├── core/               # Configuration, logging & security
 │   │   ├── middleware/         # Correlation ID & request metrics tracking
 │   │   └── services/           # Telemetry metrics & application state
-│   ├── tests/                  # Pytest unit & integration tests (20 tests passed)
+│   ├── tests/                  # Pytest backend tests (20 tests passed)
 │   ├── verify_endpoints.py     # Live HTTP verification harness
 │   ├── requirements.txt        # Pinned dependencies
 │   └── README.md               # Backend documentation & runbook
-├── frontend/                   # Single-Page Dashboard (HTML5/CSS/Vanilla JS)
+├── frontend/                   # Operations Center Dashboard (HTML5/CSS3/Vanilla JS)
+│   ├── css/                    # Dark-themed responsive stylesheet
+│   ├── js/                     # API client, Prometheus parser, charts, UI controller
+│   ├── assets/                 # SVGs and icons
+│   ├── test_api_parser.js      # Node.js Prometheus parser test
+│   ├── verify_frontend_e2e.py  # End-to-end 10-point operational validation harness
+│   └── README.md               # Frontend runbook & architecture
 ├── infrastructure/
 │   ├── docker/                 # Production Dockerfiles & docker-compose.yml
 │   ├── kubernetes/             # K8s manifests (Deployments, Services, ConfigMaps)
@@ -78,7 +86,7 @@ deployx/
 ├── scripts/
 │   ├── linux/                  # Bash deployment, rollback & verification scripts
 │   └── windows/                # PowerShell cross-platform automation scripts
-├── tests/                      # End-to-end chaos & rollback test suites
+├── tests/                      # Full integration test suites (8 frontend tests passed)
 ├── docs/                       # Runbooks, diagrams & architecture documentation
 ├── .env.example                # Standardized environment configuration template
 ├── .gitignore                  # Security-first ignore rules
@@ -115,8 +123,8 @@ This project is structured into sequential delivery phases tracked in [TASK_STAT
 |---|---|---|
 | **Phase 0** | Environment Audit & Architecture Design | ✅ **Completed** |
 | **Phase 1** | Core FastAPI Backend & Health Telemetry Engine | ✅ **Completed (20/20 Tests Passed)** |
-| **Phase 2** | Lightweight Frontend Dashboard | ⏳ Up Next |
-| **Phase 3** | Docker & Compose Orchestration | ⏳ Planned |
+| **Phase 2** | Lightweight Frontend Dashboard | ✅ **Completed (28/28 Tests Passed)** |
+| **Phase 3** | Docker & Compose Orchestration | ⏳ Up Next |
 | **Phase 4** | Kubernetes Manifests & Kind Deployment | ⏳ Planned |
 | **Phase 5** | Blue-Green Deployment & Automated Rollback | ⏳ Planned |
 | **Phase 6** | Prometheus & Grafana Monitoring Stack | ⏳ Planned |
@@ -131,6 +139,7 @@ This project is structured into sequential delivery phases tracked in [TASK_STAT
 ## 🔒 Security & Safe Operation Principles
 
 - **Zero Hardcoded Secrets:** All secrets and credentials are strictly injected at runtime via environment variables or Kubernetes Secrets.
+- **Zero Unsafe DOM Injection:** Dashboard strictly avoids `innerHTML` for dynamic payloads, using `textContent` and safe DOM elements to prevent XSS.
 - **Non-Root Execution:** All workload containers execute as unprivileged users.
 - **Fail-Safe Design:** Disaster recovery automation prioritizes service availability over speculative cutovers.
 - **Resource Discipline:** Strict CPU and RAM limits on all containers prevent resource starvation in development and production alike.

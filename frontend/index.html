@@ -1,0 +1,378 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>DeployX — Cloud Operations Center</title>
+  <link rel="icon" type="image/svg+xml" href="assets/favicon.svg">
+  <link rel="stylesheet" href="css/styles.css">
+  <!-- Optional lightweight Chart.js CDN (falls back to pure CSS bars if offline) -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+</head>
+<body>
+
+  <!-- ==========================================
+       Sidebar Navigation
+       ========================================== -->
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-header">
+      <div class="brand-icon">
+        <img src="assets/favicon.svg" alt="DeployX Logo" width="32" height="32">
+      </div>
+      <div class="brand-title">
+        DeployX
+        <span class="brand-sub">Ops Center</span>
+      </div>
+    </div>
+
+    <nav class="sidebar-nav">
+      <div class="nav-section-title">Monitoring</div>
+      <a href="#overview" class="nav-item active">
+        <span class="nav-icon">📊</span>
+        <span>System Overview</span>
+      </a>
+      <a href="#metrics-section" class="nav-item">
+        <span class="nav-icon">📈</span>
+        <span>Telemetry & Metrics</span>
+      </a>
+
+      <div class="nav-section-title">Orchestration</div>
+      <a href="#deployment-section" class="nav-item">
+        <span class="nav-icon">🔄</span>
+        <span>Blue-Green Rollout</span>
+      </a>
+      <a href="#kubernetes-section" class="nav-item">
+        <span class="nav-icon">☸️</span>
+        <span>Kubernetes Cluster</span>
+      </a>
+      <a href="#dr-section" class="nav-item">
+        <span class="nav-icon">🛡️</span>
+        <span>Disaster Recovery</span>
+      </a>
+
+      <div class="nav-section-title">Developer Tools</div>
+      <a href="http://localhost:8000/docs" target="_blank" rel="noopener noreferrer" class="nav-item">
+        <span class="nav-icon">📖</span>
+        <span>Swagger API Docs ↗</span>
+      </a>
+      <a href="http://localhost:8000/metrics" target="_blank" rel="noopener noreferrer" class="nav-item">
+        <span class="nav-icon">⚡</span>
+        <span>Prometheus Raw ↗</span>
+      </a>
+    </nav>
+
+    <div class="sidebar-footer">
+      <div>DeployX Core v1.0.0</div>
+      <div>WSL2 & Docker Kind Architecture</div>
+    </div>
+  </aside>
+
+  <!-- ==========================================
+       Main Application Area
+       ========================================== -->
+  <div class="app-container">
+
+    <!-- Sticky Top Header -->
+    <header class="top-header">
+      <div class="header-left">
+        <button class="menu-toggle" id="menu-toggle" aria-label="Toggle Navigation">☰</button>
+        <h1 class="page-title">Cloud Operations Center</h1>
+      </div>
+
+      <div class="header-right">
+        <!-- Live Connection Status Pill -->
+        <div class="connection-badge" id="connection-badge">
+          <span class="status-dot"></span>
+          <span id="connection-status-text">CONNECTING...</span>
+        </div>
+
+        <!-- API Config Pill -->
+        <div class="config-pill" title="Configure FastAPI Backend Base URL">
+          <span>API:</span>
+          <input type="text" id="api-url-input" class="api-url-input" spellcheck="false" placeholder="http://localhost:8000">
+        </div>
+
+        <!-- Auto Refresh Toggle Button -->
+        <button class="btn btn-primary" id="btn-toggle-auto">Auto-refresh: 10s</button>
+
+        <!-- Manual Refresh Button -->
+        <button class="btn btn-secondary btn-refresh" id="btn-refresh" title="Trigger Instant Refresh">
+          <span class="refresh-icon">🔄</span>
+          <span>Refresh</span>
+        </button>
+      </div>
+    </header>
+
+    <!-- Main Content Body -->
+    <main class="dashboard-content">
+
+      <!-- Alert / Disconnected Banner -->
+      <div class="alert-banner" id="alert-banner" role="alert">
+        <div class="alert-content">
+          <span class="alert-icon">⚠️</span>
+          <div>
+            <strong style="display:block; margin-bottom:2px;">Backend Service Disconnected</strong>
+            <span id="alert-message">Unable to communicate with the FastAPI backend.</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- ==========================================
+           Section A: System Overview
+           ========================================== -->
+      <section id="overview">
+        <div class="section-header">
+          <div>
+            <h2 class="section-title">System Overview</h2>
+            <p class="section-subtitle">Real-time health, readiness, and runtime telemetry from FastAPI</p>
+          </div>
+          <div style="font-size:0.8rem; color:var(--text-muted);">
+            Last refreshed: <strong id="last-updated-text" style="color:var(--text-primary); font-family:var(--font-mono);">--:--:--</strong>
+          </div>
+        </div>
+
+        <div class="cards-grid">
+          <!-- Card 1: Liveness Probe -->
+          <div class="metric-card">
+            <div class="card-top">
+              <span class="card-label">Process Liveness</span>
+              <div class="card-icon-badge">💓</div>
+            </div>
+            <div class="card-value" id="val-liveness">--</div>
+            <div class="card-meta" id="meta-liveness">Probing /health/live...</div>
+          </div>
+
+          <!-- Card 2: Readiness Probe -->
+          <div class="metric-card">
+            <div class="card-top">
+              <span class="card-label">Traffic Readiness</span>
+              <div class="card-icon-badge">🚦</div>
+            </div>
+            <div class="card-value" id="val-readiness">--</div>
+            <div class="card-meta" id="meta-readiness">Probing /health/ready...</div>
+          </div>
+
+          <!-- Card 3: App Version & Environment -->
+          <div class="metric-card">
+            <div class="card-top">
+              <span class="card-label">Version & Environment</span>
+              <div class="card-icon-badge">🏷️</div>
+            </div>
+            <div class="card-value" id="val-app-version">--</div>
+            <div class="card-meta" id="meta-app-version">Querying /api/v1/status...</div>
+          </div>
+
+          <!-- Card 4: Uptime -->
+          <div class="metric-card">
+            <div class="card-top">
+              <span class="card-label">Process Uptime</span>
+              <div class="card-icon-badge">⏱️</div>
+            </div>
+            <div class="card-value" id="val-uptime">--</div>
+            <div class="card-meta" id="meta-uptime">Tracking process elapsed time</div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ==========================================
+           Section B: Performance Metrics (Prometheus RED)
+           ========================================== -->
+      <section id="metrics-section">
+        <div class="section-header">
+          <div>
+            <h2 class="section-title">Performance & RED Telemetry</h2>
+            <p class="section-subtitle">Ingested and parsed directly from Prometheus exposition (/metrics)</p>
+          </div>
+        </div>
+
+        <div class="cards-grid" style="margin-bottom: 22px;">
+          <!-- Metric 1: Total HTTP Requests -->
+          <div class="metric-card">
+            <div class="card-top">
+              <span class="card-label">Total HTTP Requests</span>
+              <div class="card-icon-badge">📥</div>
+            </div>
+            <div class="card-value" id="val-total-requests">0</div>
+            <div class="card-meta">All registered HTTP routes</div>
+          </div>
+
+          <!-- Metric 2: Avg Request Latency -->
+          <div class="metric-card">
+            <div class="card-top">
+              <span class="card-label">Average Latency</span>
+              <div class="card-icon-badge">⚡</div>
+            </div>
+            <div class="card-value" id="val-avg-latency">--</div>
+            <div class="card-meta">Computed from duration sum / count</div>
+          </div>
+
+          <!-- Metric 3: Success Rate -->
+          <div class="metric-card">
+            <div class="card-top">
+              <span class="card-label">HTTP Success Rate</span>
+              <div class="card-icon-badge">✅</div>
+            </div>
+            <div class="card-value" id="val-success-rate">100%</div>
+            <div class="card-meta">2xx status responses</div>
+          </div>
+
+          <!-- Metric 4: Error Count -->
+          <div class="metric-card">
+            <div class="card-top">
+              <span class="card-label">Errors (4xx / 5xx)</span>
+              <div class="card-icon-badge">❌</div>
+            </div>
+            <div class="card-value" id="val-error-count">0 errors</div>
+            <div class="card-meta">Client & Server anomaly count</div>
+          </div>
+        </div>
+
+        <!-- Telemetry Charts -->
+        <div class="charts-grid" style="margin-bottom: 22px;">
+          <!-- Chart Panel 1: Endpoints Distribution -->
+          <div class="chart-panel" id="chart-endpoints-container">
+            <div class="chart-header">
+              <h3 class="chart-title">Request Volume by Endpoint</h3>
+              <span style="font-size:0.75rem; color:var(--text-muted); font-family:var(--font-mono);">deployx_http_requests_total</span>
+            </div>
+            <div class="chart-wrapper">
+              <canvas id="canvas-endpoints"></canvas>
+            </div>
+          </div>
+
+          <!-- Chart Panel 2: Status Code Distribution -->
+          <div class="chart-panel" id="chart-status-container">
+            <div class="chart-header">
+              <h3 class="chart-title">HTTP Status Code Distribution</h3>
+              <span style="font-size:0.75rem; color:var(--text-muted); font-family:var(--font-mono);">2xx / 4xx / 5xx</span>
+            </div>
+            <div class="chart-wrapper">
+              <canvas id="canvas-status"></canvas>
+            </div>
+          </div>
+        </div>
+
+        <!-- Endpoints Detailed Table -->
+        <div class="table-panel">
+          <div style="padding: 16px 20px; border-bottom: 1px solid var(--border-color); display:flex; justify-content:space-between; align-items:center;">
+            <h3 style="font-size: 0.95rem; font-weight:600; color:#fff;">Normalized Route Telemetry Table</h3>
+            <span style="font-size: 0.75rem; color: var(--text-muted);">Bounded label cardinality</span>
+          </div>
+          <div class="table-responsive">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th style="width: 120px;">Method</th>
+                  <th>Route Template / Handler</th>
+                  <th style="width: 140px;">Status</th>
+                  <th style="width: 120px;">Total Requests</th>
+                </tr>
+              </thead>
+              <tbody id="table-endpoints-body">
+                <tr>
+                  <td colspan="4" style="text-align: center; color: var(--text-muted); padding: 24px;">
+                    Connecting to backend...
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- ==========================================
+           Section C: Blue-Green Deployment Overview
+           ========================================== -->
+      <section id="deployment-section">
+        <div class="section-header">
+          <div>
+            <h2 class="section-title">Deployment Overview</h2>
+            <p class="section-subtitle">Zero-downtime release automation and traffic switching</p>
+          </div>
+        </div>
+
+        <div class="planned-card not-configured">
+          <div class="planned-icon">🔄</div>
+          <div class="planned-body">
+            <div class="planned-title-row">
+              <span class="planned-title">Blue-Green Deployment Engine</span>
+              <span class="badge-not-configured">NOT CONFIGURED</span>
+            </div>
+            <p class="planned-desc">
+              Blue-Green deployment automation, dynamic Kubernetes Service selector shifting (v1.0 Blue ↔ v2.0 Green), and synthetic canary validation are scheduled for implementation in <strong>Phase 5</strong>. No traffic switching is currently active.
+            </p>
+            <div class="planned-roadmap-tag">⚡ Milestone: Phase 5 (Blue-Green Deployment & Automated Rollback)</div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ==========================================
+           Section D: Kubernetes Cluster Overview
+           ========================================== -->
+      <section id="kubernetes-section">
+        <div class="section-header">
+          <div>
+            <h2 class="section-title">Kubernetes Cluster</h2>
+            <p class="section-subtitle">Cluster topology, pod replicas, and container health</p>
+          </div>
+        </div>
+
+        <div class="planned-card not-configured">
+          <div class="planned-icon">☸️</div>
+          <div class="planned-body">
+            <div class="planned-title-row">
+              <span class="planned-title">Cluster Telemetry & Workload Pods</span>
+              <span class="badge-not-connected">NOT CONNECTED</span>
+            </div>
+            <p class="planned-desc">
+              Local Kind cluster (<code>deployx</code>) manifests, namespace allocations, ConfigMaps, and pod resource limits (50m-200m CPU, 64Mi-128Mi RAM) are scheduled for deployment in <strong>Phase 4</strong>. Kubernetes API telemetry integration is pending.
+            </p>
+            <div class="planned-roadmap-tag">⚡ Milestone: Phase 4 (Kubernetes Manifests & Kind Cluster Deployment)</div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ==========================================
+           Section E: Disaster Recovery & Backups
+           ========================================== -->
+      <section id="dr-section">
+        <div class="section-header">
+          <div>
+            <h2 class="section-title">Disaster Recovery & Snapshots</h2>
+            <p class="section-subtitle">Automated SLA rollback watchdog and cloud backups</p>
+          </div>
+        </div>
+
+        <div class="planned-card not-configured">
+          <div class="planned-icon">🛡️</div>
+          <div class="planned-body">
+            <div class="planned-title-row">
+              <span class="planned-title">Automated DR Rollback Controller & S3 Snapshots</span>
+              <span class="badge-not-configured">NOT CONFIGURED</span>
+            </div>
+            <p class="planned-desc">
+              Automated disaster recovery triggers (latency degradation &gt; 500ms, 5xx rate threshold violations), instant rollback controller, and AWS S3 state snapshot storage will be configured in <strong>Phase 5</strong> and <strong>Phase 9</strong>.
+            </p>
+            <div class="planned-roadmap-tag">⚡ Milestone: Phase 5 (DR Engine) &amp; Phase 9 (AWS S3 &amp; CloudWatch)</div>
+          </div>
+        </div>
+      </section>
+
+    </main>
+
+    <!-- Footer -->
+    <footer class="dashboard-footer">
+      <div>DeployX — Intelligent Cloud Deployment &amp; Disaster Recovery Platform</div>
+      <div class="footer-meta">
+        <span>Resource Budget: &lt; 960 MiB Peak RAM</span>
+        <span>Environment: Local WSL2 / Kind</span>
+      </div>
+    </footer>
+  </div>
+
+  <!-- Application Scripts -->
+  <script src="js/api.js"></script>
+  <script src="js/charts.js"></script>
+  <script src="js/dashboard.js"></script>
+</body>
+</html>
