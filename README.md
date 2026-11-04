@@ -6,49 +6,68 @@
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.162.0-009688?logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com/)
 [![Prometheus](https://img.shields.io/badge/Prometheus-Monitoring-E6522C?logo=prometheus&logoColor=white)](https://prometheus.io/)
 [![Grafana](https://img.shields.io/badge/Grafana-Visualization-F46800?logo=grafana&logoColor=white)](https://grafana.com/)
-[![Tests](https://img.shields.io/badge/Tests-28%2F28%20Passed-brightgreen.svg)](backend/README.md)
+[![Tests](https://img.shields.io/badge/Tests-40%2F40%20Passed-brightgreen.svg)](tests/)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 
-> **DeployX** is a production-grade, portfolio-ready DevOps and Cloud Engineering platform showcasing automated zero-downtime Blue-Green deployments, synthetic canary health probing, automated disaster recovery rollbacks, full-stack observability, and cross-platform automation on Kubernetes and AWS.
+> **DeployX** is a modular cloud deployment and telemetry platform designed to demonstrate modern containerization, Kubernetes orchestration, and telemetry practices. The platform currently features a production-hardened FastAPI backend with health and readiness endpoints, Prometheus-format application metrics, a responsive HTML/CSS/JavaScript operations dashboard, containerization via Docker and Docker Compose, and a local Kubernetes deployment using Kind with readiness and liveness probes, ClusterIP/NodePort Services, and strict resource limits. Blue-Green deployment, automated disaster recovery rollbacks, synthetic canary probing, and dedicated Prometheus/Grafana server stacks are scheduled for upcoming phases.
 
 ---
 
 ## 🌟 Executive Summary
 
-Modern cloud architectures demand continuous delivery without sacrificing reliability. DeployX bridges the gap between agile application delivery and high-availability disaster recovery by providing:
-- **Zero-Downtime Blue-Green Cutover:** Seamless traffic migration between active and standby release environments.
-- **Automated Disaster Recovery (DR) Rollback:** Instant detection of degraded latency or error spikes during releases, automatically reverting traffic to the stable release within seconds.
-- **Micro-Footprint Engineering:** Engineered to operate completely within constrained development environments (~3.5 GiB RAM in WSL2/Docker) with zero paid cloud API dependencies.
-- **Unified Observability:** Granular RED metrics (Rate, Errors, Duration) exported to Prometheus and visualized on real-time Grafana dashboards.
-- **Real-Time Operations Center:** Dark-themed, responsive DevOps single-page dashboard with zero Node.js build overhead.
-- **Intelligent Diagnostics:** Deterministic Kubernetes failure signature analysis (CrashLoopBackOff, OOMKilled) with optional local LLM integration via Ollama.
-- **Cross-Platform Automation:** Complete parity with dual native automation suites for Linux (Bash) and Windows (PowerShell).
+Modern cloud architectures demand continuous delivery without sacrificing reliability. DeployX bridges the gap between agile application delivery and high-availability operations through a disciplined, phased engineering approach.
+
+### Implemented Functionality (Phases 0–4)
+- **FastAPI Telemetry Backend:** Lightweight, asynchronous Python backend providing dedicated process liveness (`/health/live`), dependency readiness (`/health/ready`), system status (`/api/v1/status`), and structured JSON logging with request correlation IDs.
+- **Prometheus-Format Application Metrics:** Live RED metrics (Rate, Errors, Duration) and uptime gauges exposed at `/metrics` using standard Prometheus exposition format.
+- **Operations Center Dashboard:** Dark-themed, responsive single-page dashboard built with vanilla HTML5, CSS3, and modern JavaScript (ES6+), featuring live health indicators, request latency calculations, and route telemetry tables with zero Node.js build overhead.
+- **Multi-Container Docker Architecture:** Hardened Debian slim backend container (`python:3.14-slim`) running as an unprivileged user (`deployx:10001`) and an ultra-lightweight Nginx Alpine frontend container (`nginx:alpine`) configured for Gzip compression and reverse-proxy caching controls.
+- **Unified Docker Compose Orchestration:** Root-level `compose.yaml` with internal bridge networking (`deployx-network`), health check contracts, and deterministic startup sequencing (`depends_on: backend: condition: service_healthy`).
+- **Kubernetes Deployment on Kind:** Declarative Kubernetes manifests (`infrastructure/kubernetes/`) deploying workloads into an isolated `deployx` namespace on a local Kind cluster (`deployx`).
+- **Probes & Resource Discipline:** Configured Kubernetes liveness and readiness probes on both backend and frontend pods, with strict CPU and memory requests and limits (< 200 MiB total combined footprint).
+- **Service Discovery & Compatibility:** ClusterIP backend service (`deployx-backend`), DNS alias service (`backend`) ensuring seamless Nginx reverse-proxy compatibility with Docker Compose, and NodePort frontend service (`30080`).
+
+### Planned Roadmap (Phases 5–11)
+- **Zero-Downtime Blue-Green Cutover (Phase 5):** Automated traffic switching between active and standby release environments.
+- **Automated Disaster Recovery Rollback (Phase 5):** Automated rollback controller monitoring synthetic canary probes and latency/error SLAs.
+- **Dedicated Observability Stack (Phase 6):** Centralized Prometheus scrape server and provisioned Grafana dashboards.
+- **Cross-Platform Automation Tooling (Phase 7):** Automated operational scripts for Linux (Bash) and Windows (PowerShell).
+- **CI/CD Pipeline Automation (Phase 8):** GitHub Actions workflows for continuous integration, linting, container builds, and test runs.
+- **AWS Cloud Infrastructure as Code (Phase 9):** Terraform / CloudFormation infrastructure definitions for AWS VPC, EC2, S3 snapshot persistence, and CloudWatch.
+- **Intelligent Diagnostics & Local LLM (Phase 10):** Kubernetes failure signature analysis with optional local Ollama integration.
+- **Chaos Engineering & Resilience Validation (Phase 11):** Failure injection testing and end-to-end SLA verification.
 
 ---
 
 ## 🏗️ Architecture At A Glance
 
 ```mermaid
-flowchart LR
-    Client([Operator / Web Browser]) --> Router[Traffic Router / K8s Service]
-    Frontend([DeployX Dashboard<br/>Port 3000]) -. Poll Telemetry .-> Router
-    
-    subgraph K8s["Kubernetes (Kind Cluster: deployx)"]
-        Router -. 100% Traffic .-> Blue[Blue Deployment<br/>Stable v1.0]
-        Router -. Canary Probe .-> Green[Green Deployment<br/>Candidate v2.0]
-        
-        Watchdog[Canary Health Watchdog] -->|Synthesize Health Probes| Green
-        Watchdog -->|Trigger Rollback if SLA Fails| Router
+flowchart TD
+    Client([Operator / Web Browser]) -->|NodePort :30080 or Port-Forward :8080| FE_SVC[Service: deployx-frontend<br/>NodePort / Port 80]
+
+    subgraph K8s["Kubernetes (Kind Cluster: deployx | Namespace: deployx)"]
+        FE_SVC --> FE_POD["Pod: deployx-frontend<br/>(Nginx Alpine | Port 80)<br/>Probes: Liveness & Readiness"]
+
+        FE_POD -->|Static Assets| Client
+        FE_POD -->|Reverse Proxy /health, /api, /metrics<br/>http://backend:8000| BE_SVC
+
+        subgraph Services["Internal ClusterIP Routing"]
+            BE_SVC["Service: backend (DNS Alias)<br/>Service: deployx-backend<br/>ClusterIP | Port 8000"]
+        end
+
+        BE_SVC --> BE_POD["Pod: deployx-backend<br/>(Python 3.14-slim | Port 8000)<br/>Probes: /health/live & /health/ready<br/>Limits: 500m CPU, 384Mi RAM"]
+
+        BE_POD -->|Telemetry Data| FE_POD
     end
-    
-    subgraph Observability["Observability Suite"]
-        Blue & Green -->|Scrape /metrics| Prom[Prometheus]
-        Prom --> Graf[Grafana Dashboards]
+
+    subgraph DeployedEndpoints["Exposed Application Endpoints"]
+        E1["/health/live (Liveness)"]
+        E2["/health/ready (Readiness)"]
+        E3["/api/v1/status (Status)"]
+        E4["/metrics (Prometheus Format)"]
     end
-    
-    subgraph Diagnostics["Diagnostics"]
-        Blue & Green -->|Container Logs| Diag[Rule-Based & Ollama Engine]
-    end
+
+    BE_POD -.-> DeployedEndpoints
 ```
 
 For complete technical specifications, see [ARCHITECTURE.md](ARCHITECTURE.md).
@@ -86,7 +105,7 @@ deployx/
 ├── scripts/
 │   ├── linux/                  # Bash deployment, rollback & verification scripts
 │   └── windows/                # PowerShell cross-platform automation scripts
-├── tests/                      # Full integration test suites (8 frontend tests passed)
+├── tests/                      # Full integration test suites (frontend, docker, kubernetes)
 ├── docs/                       # Runbooks, diagrams & architecture documentation
 ├── .env.example                # Standardized environment configuration template
 ├── .gitignore                  # Security-first ignore rules
@@ -125,8 +144,8 @@ This project is structured into sequential delivery phases tracked in [TASK_STAT
 | **Phase 1** | Core FastAPI Backend & Health Telemetry Engine | ✅ **Completed (20/20 Tests Passed)** |
 | **Phase 2** | Lightweight Frontend Dashboard | ✅ **Completed (28/28 Tests Passed)** |
 | **Phase 3** | Docker & Compose Orchestration | ✅ **Completed (35/35 Tests Passed)** |
-| **Phase 4** | Kubernetes Manifests & Kind Deployment | ⏳ Up Next |
-| **Phase 5** | Blue-Green Deployment & Automated Rollback | ⏳ Planned |
+| **Phase 4** | Kubernetes Manifests & Kind Deployment | ✅ **Completed (40/40 Tests Passed)** |
+| **Phase 5** | Blue-Green Deployment & Automated Rollback | ⏳ Up Next |
 | **Phase 6** | Prometheus & Grafana Monitoring Stack | ⏳ Planned |
 | **Phase 7** | Linux & Windows Automation Tooling | ⏳ Planned |
 | **Phase 8** | GitHub Actions CI/CD Pipeline | ⏳ Planned |
@@ -167,6 +186,36 @@ docker compose down
 ```
 
 For in-depth container architecture details, see [infrastructure/docker/README.md](infrastructure/docker/README.md).
+
+---
+
+## ☸️ Kubernetes Deployment (Kind Cluster)
+
+DeployX is verified running on local Kubernetes via Kind (`deployx` cluster, `deployx` namespace):
+
+```bash
+# 1. Load locally built container images into the Kind cluster
+kind load docker-image deployx-backend:latest --name deployx
+kind load docker-image deployx-frontend:latest --name deployx
+
+# 2. Dry-run validate and apply manifests
+kubectl apply --dry-run=client -f infrastructure/kubernetes/
+kubectl apply -f infrastructure/kubernetes/
+
+# 3. Check workload status and endpoints
+kubectl get all,endpoints -n deployx
+
+# 4. Port-forward the frontend service for local access
+kubectl port-forward -n deployx svc/deployx-frontend 8080:80
+
+# 5. Access the application via port-forward
+# Dashboard:        http://localhost:8080/
+# Proxied Live:     http://localhost:8080/health/live
+# Proxied Status:   http://localhost:8080/api/v1/status
+# Proxied Metrics:  http://localhost:8080/metrics
+```
+
+For complete manifest specifications, probe details, and DNS alias architecture, see [infrastructure/kubernetes/README.md](infrastructure/kubernetes/README.md).
 
 ---
 

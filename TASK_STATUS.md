@@ -2,7 +2,7 @@
 
 **Platform:** DeployX – Intelligent Cloud Deployment & Disaster Recovery Platform
 **Lead:** Senior DevOps Engineer & AWS Cloud Architect
-**Current Phase:** Phase 3 (Completed)
+**Current Phase:** Phase 5 (upcoming)
 **Last Updated:** November 4, 2026
 
 ---
@@ -15,7 +15,7 @@
 | **Phase 1** | Core FastAPI Backend & Health Telemetry Engine | COMPLETED | 100% |
 | **Phase 2** | Lightweight Modern Frontend Dashboard | COMPLETED | 100% |
 | **Phase 3** | Docker Containerization & Docker Compose Orchestration | COMPLETED | 100% |
-| **Phase 4** | Kubernetes Manifests & Kind Cluster Deployment | PENDING | 0% |
+| **Phase 4** | Kubernetes Manifests & Kind Cluster Deployment | COMPLETED | 100% |
 | **Phase 5** | Blue-Green Deployment & Disaster Recovery Rollback Engine | PENDING | 0% |
 | **Phase 6** | Monitoring & Observability (Prometheus & Grafana) | PENDING | 0% |
 | **Phase 7** | Automation Tooling (Linux Bash & Windows PowerShell) | PENDING | 0% |
@@ -104,7 +104,7 @@
   - [x] Normalized Route Telemetry Table with bounded labels and zero unsafe `innerHTML`.
 - [x] Sections C, D, E: Honest Architectural States:
   - [x] Deployment Overview displayed as `NOT CONFIGURED` (scheduled for Phase 5).
-  - [x] Kubernetes Overview displayed as `NOT CONNECTED` (scheduled for Phase 4).
+  - [x] Kubernetes Overview initially displayed as `NOT CONNECTED`; connectivity was verified in Phase 4.
   - [x] Disaster Recovery displayed as `NOT CONFIGURED` (scheduled for Phase 5 & 9).
   - [x] Zero fabricated deployment, cluster, backup, or recovery data.
 - [x] Security & DOM Sanitization:
@@ -138,18 +138,33 @@
 ---
 
 ### Phase 4: Kubernetes Manifests & Kind Cluster Deployment
-- [ ] Create Kubernetes namespace manifest (`deployx`).
-- [ ] Define ConfigMaps for application configuration (`deployx-config`).
-- [ ] Define Secret templates with sealed/base64 pattern (`deployx-secret`).
-- [ ] Create Blue Deployment manifest (`infrastructure/kubernetes/backend-blue.yaml`):
-  - [ ] Resource requests (50m CPU, 64Mi RAM) & limits (200m CPU, 128Mi RAM)
-  - [ ] Liveness, Readiness, and Startup probes
-- [ ] Create Green Deployment manifest (`infrastructure/kubernetes/backend-green.yaml`).
-- [ ] Create internal ClusterIP services for Blue and Green pods.
-- [ ] Create primary router Service (`deployx-active-service`) targeting active deployment color.
-- [ ] Create Ingress or NodePort manifests for Kind local access.
-- [ ] Load local images into Kind cluster (`kind load docker-image`).
-- [ ] Validate manifests using `kubectl apply --dry-run=client`.
+- [x] Create dedicated Kubernetes namespace manifest (`infrastructure/kubernetes/namespace.yaml` -> `deployx`).
+- [x] Create Backend Deployment & Service manifest (`infrastructure/kubernetes/backend.yaml`):
+  - [x] 1 replica, `deployx-backend:latest` image with `imagePullPolicy: IfNotPresent`.
+  - [x] Readiness probe (`/health/ready` on port 8000, initialDelaySeconds: 5, periodSeconds: 10).
+  - [x] Liveness probe (`/health/live` on port 8000, initialDelaySeconds: 10, periodSeconds: 20).
+  - [x] Resource requests (`100m` CPU, `128Mi` RAM) & limits (`500m` CPU, `384Mi` RAM).
+  - [x] ClusterIP service `deployx-backend` on port 8000.
+- [x] Create Backend DNS alias Service manifest (`infrastructure/kubernetes/backend-alias.yaml`):
+  - [x] ClusterIP service `backend` targeting `app: deployx-backend` on port 8000 to preserve reverse proxy compatibility with Docker Compose without altering `nginx.conf`.
+- [x] Create Frontend Deployment & Service manifest (`infrastructure/kubernetes/frontend.yaml`):
+  - [x] 1 replica, `deployx-frontend:latest` image with `imagePullPolicy: IfNotPresent`.
+  - [x] Readiness probe (`/` on port 80, initialDelaySeconds: 3, periodSeconds: 10).
+  - [x] Liveness probe (`/` on port 80, initialDelaySeconds: 10, periodSeconds: 20).
+  - [x] Resource requests (`50m` CPU, `32Mi` RAM) & limits (`250m` CPU, `128Mi` RAM).
+  - [x] NodePort service `deployx-frontend` (Port 80 -> NodePort 30080).
+- [x] Load locally built container images into Kind cluster (`deployx`):
+  - [x] `kind load docker-image deployx-backend:latest --name deployx`
+  - [x] `kind load docker-image deployx-frontend:latest --name deployx`
+- [x] Validate manifests with `kubectl apply --dry-run=client -f infrastructure/kubernetes/`.
+- [x] Deploy and verify workloads in Kind cluster:
+  - [x] Backend Deployment 1/1 Available, Pod 1/1 Running.
+  - [x] Frontend Deployment 1/1 Available, Pod 1/1 Running & Ready (resolved 6 historical restarts via `backend` DNS alias service).
+  - [x] Endpoints verified through frontend port-forward (`30080:80`): `/health/live` (200 OK), `/api/v1/status` (200 OK), `/metrics` (200 OK).
+- [x] Automated test suite in `tests/test_kubernetes.py` (5 tests passing).
+- [x] Comprehensive runbook documentation in `infrastructure/kubernetes/README.md`.
+- [ ] ConfigMaps and Secret templates (deferred for future externalized runtime configuration).
+- [ ] Ingress controller (NodePort 30080 and port-forward currently used; Ingress scheduled for future routing/blue-green).
 
 ---
 
