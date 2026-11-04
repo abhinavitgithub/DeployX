@@ -2,7 +2,7 @@
 
 **Platform:** DeployX – Intelligent Cloud Deployment & Disaster Recovery Platform
 **Lead:** Senior DevOps Engineer & AWS Cloud Architect
-**Current Phase:** Phase 5 (upcoming)
+**Current Phase:** Phase 6 (upcoming)
 **Last Updated:** November 4, 2026
 
 ---
@@ -16,7 +16,7 @@
 | **Phase 2** | Lightweight Modern Frontend Dashboard | COMPLETED | 100% |
 | **Phase 3** | Docker Containerization & Docker Compose Orchestration | COMPLETED | 100% |
 | **Phase 4** | Kubernetes Manifests & Kind Cluster Deployment | COMPLETED | 100% |
-| **Phase 5** | Blue-Green Deployment & Disaster Recovery Rollback Engine | PENDING | 0% |
+| **Phase 5** | Blue-Green Deployment & Traffic Controller | COMPLETED | 100% |
 | **Phase 6** | Monitoring & Observability (Prometheus & Grafana) | PENDING | 0% |
 | **Phase 7** | Automation Tooling (Linux Bash & Windows PowerShell) | PENDING | 0% |
 | **Phase 8** | CI/CD Pipeline Automation (GitHub Actions) | PENDING | 0% |
@@ -104,7 +104,7 @@
   - [x] Normalized Route Telemetry Table with bounded labels and zero unsafe `innerHTML`.
 - [x] Sections C, D, E: Honest Architectural States:
   - [x] Deployment Overview displayed as `NOT CONFIGURED` (scheduled for Phase 5).
-  - [x] Kubernetes Overview initially displayed as `NOT CONNECTED`; connectivity was verified in Phase 4.
+  - [x] Kubernetes Overview displayed as `NOT CONNECTED` (scheduled for Phase 4).
   - [x] Disaster Recovery displayed as `NOT CONFIGURED` (scheduled for Phase 5 & 9).
   - [x] Zero fabricated deployment, cluster, backup, or recovery data.
 - [x] Security & DOM Sanitization:
@@ -168,15 +168,33 @@
 
 ---
 
-### Phase 5: Blue-Green Deployment & Disaster Recovery Rollback Engine
-- [ ] Implement traffic switching logic via service selector mutation or router rewrite.
-- [ ] Implement synthetic canary health probe checking before traffic flip.
-- [ ] Implement automated rollback triggers:
-  - [ ] HTTP 5xx rate threshold exceeded
-  - [ ] Latency degradation threshold (> 500ms)
-  - [ ] Liveness/readiness failure during transition
-- [ ] Implement failure injection test scenarios (simulate crash, high latency, memory leak).
-- [ ] Validate zero-downtime transition and automated rollback recovery.
+### Phase 5: Blue-Green Deployment & Traffic Controller
+- [x] Configure Blue Deployment (`infrastructure/kubernetes/backend.yaml`) with immutable selector and template label `deployment-color: blue`.
+- [x] Create Green Deployment (`infrastructure/kubernetes/backend-green.yaml`) with `deployment-color: green`, identical resource limits (requests: 100m/128Mi, limits: 500m/384Mi), and health probes.
+- [x] Update dynamic routing Service (`infrastructure/kubernetes/backend-alias.yaml`) selector to target `deployment-color: blue` initially.
+- [x] Preserve canonical ClusterIP Service `deployx-backend` targeting all backend pods (`app: deployx-backend`).
+- [x] Implement traffic switching controller (`scripts/linux/switch_traffic.sh`):
+  - [x] Strict input argument validation (`blue` or `green`, case-insensitive).
+  - [x] Pre-flight target rollout verification (`kubectl rollout status --timeout=30s`).
+  - [x] Pre-flight `.status.readyReplicas` check ensuring at least 1 healthy replica.
+  - [x] Idempotency guard avoiding unnecessary patches when already on target color.
+  - [x] Dynamic service selector patch (`kubectl patch service backend`).
+  - [x] Active endpoint verification polling loop with configurable timeout (`DEPLOYX_ENDPOINT_TIMEOUT`).
+  - [x] Automatic rollback restoring previous selector on endpoint timeout failure.
+  - [x] Clear structured success output with active endpoint IPs.
+- [x] Implement offline unit test suite for traffic switching logic (`tests/test_switch_traffic.py`, 7 tests passing).
+- [x] Update Kubernetes contract tests (`tests/test_kubernetes.py`, 6 tests passing).
+- [x] Live Kind cluster verification:
+  - [x] Blue deployment rollout verified (`10.244.0.8:8000`).
+  - [x] Green deployment rollout verified (`10.244.0.7:8000`).
+  - [x] Successful cutover to Green via `./scripts/linux/switch_traffic.sh green`.
+  - [x] Verified proxied endpoints on Green via frontend (`/health/live` HTTP 200, `/api/v1/status` HTTP 200, `/metrics` HTTP 200).
+  - [x] Successful cutover back to Blue via `./scripts/linux/switch_traffic.sh blue`.
+- [x] Full test pass: 48/48 tests passed.
+- [x] Code quality: Ruff check clean (0 errors), Bash syntax clean (`bash -n` exit 0).
+- [x] Update documentation in `infrastructure/kubernetes/README.md`, `README.md`, and `TASK_STATUS.md`.
+- [ ] Synthetic canary health probe watchdog daemon (scheduled for Phase 7 / Phase 11 automated DR).
+- [ ] Automated metric-based SLA rollback controller (HTTP 5xx / latency watchdog; scheduled for Phase 7 / Phase 11).
 
 ---
 

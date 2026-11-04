@@ -5,15 +5,18 @@ metadata:
   namespace: deployx
   labels:
     app: deployx-backend
+    deployment-color: blue
 spec:
   replicas: 1
   selector:
     matchLabels:
       app: deployx-backend
+      deployment-color: blue
   template:
     metadata:
       labels:
         app: deployx-backend
+        deployment-color: blue
     spec:
       containers:
         - name: backend

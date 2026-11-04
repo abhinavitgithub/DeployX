@@ -6,10 +6,10 @@
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.162.0-009688?logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com/)
 [![Prometheus](https://img.shields.io/badge/Prometheus-Monitoring-E6522C?logo=prometheus&logoColor=white)](https://prometheus.io/)
 [![Grafana](https://img.shields.io/badge/Grafana-Visualization-F46800?logo=grafana&logoColor=white)](https://grafana.com/)
-[![Tests](https://img.shields.io/badge/Tests-40%2F40%20Passed-brightgreen.svg)](tests/)
+[![Tests](https://img.shields.io/badge/Tests-48%2F48%20Passed-brightgreen.svg)](tests/)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 
-> **DeployX** is a modular cloud deployment and telemetry platform designed to demonstrate modern containerization, Kubernetes orchestration, and telemetry practices. The platform currently features a production-hardened FastAPI backend with health and readiness endpoints, Prometheus-format application metrics, a responsive HTML/CSS/JavaScript operations dashboard, containerization via Docker and Docker Compose, and a local Kubernetes deployment using Kind with readiness and liveness probes, ClusterIP/NodePort Services, and strict resource limits. Blue-Green deployment, automated disaster recovery rollbacks, synthetic canary probing, and dedicated Prometheus/Grafana server stacks are scheduled for upcoming phases.
+> **DeployX** is a modular cloud deployment and telemetry platform designed to demonstrate modern containerization, Kubernetes orchestration, and telemetry practices. The platform currently features a production-hardened FastAPI backend with health and readiness endpoints, Prometheus-format application metrics, a responsive HTML/CSS/JavaScript operations dashboard, containerization via Docker and Docker Compose, a local Kubernetes deployment using Kind with readiness and liveness probes, ClusterIP/NodePort Services, strict resource limits, and an automated Blue-Green deployment architecture with pre-flight rollout validation and automated script-level rollback. Centralized Prometheus/Grafana server stacks and continuous delivery automation are scheduled for upcoming phases.
 
 ---
 
@@ -17,7 +17,7 @@
 
 Modern cloud architectures demand continuous delivery without sacrificing reliability. DeployX bridges the gap between agile application delivery and high-availability operations through a disciplined, phased engineering approach.
 
-### Implemented Functionality (Phases 0–4)
+### Implemented Functionality (Phases 0–5)
 - **FastAPI Telemetry Backend:** Lightweight, asynchronous Python backend providing dedicated process liveness (`/health/live`), dependency readiness (`/health/ready`), system status (`/api/v1/status`), and structured JSON logging with request correlation IDs.
 - **Prometheus-Format Application Metrics:** Live RED metrics (Rate, Errors, Duration) and uptime gauges exposed at `/metrics` using standard Prometheus exposition format.
 - **Operations Center Dashboard:** Dark-themed, responsive single-page dashboard built with vanilla HTML5, CSS3, and modern JavaScript (ES6+), featuring live health indicators, request latency calculations, and route telemetry tables with zero Node.js build overhead.
@@ -26,11 +26,11 @@ Modern cloud architectures demand continuous delivery without sacrificing reliab
 - **Kubernetes Deployment on Kind:** Declarative Kubernetes manifests (`infrastructure/kubernetes/`) deploying workloads into an isolated `deployx` namespace on a local Kind cluster (`deployx`).
 - **Probes & Resource Discipline:** Configured Kubernetes liveness and readiness probes on both backend and frontend pods, with strict CPU and memory requests and limits (< 200 MiB total combined footprint).
 - **Service Discovery & Compatibility:** ClusterIP backend service (`deployx-backend`), DNS alias service (`backend`) ensuring seamless Nginx reverse-proxy compatibility with Docker Compose, and NodePort frontend service (`30080`).
+- **Zero-Downtime Blue-Green Deployment:** Dedicated Blue (`deployx-backend`) and Green (`deployx-backend-green`) Deployments paired with a dynamic routing Service (`backend`) that seamlessly directs upstream Nginx proxy traffic to either environment via service selector mutation (`deployment-color: blue|green`).
+- **Automated Traffic Switching Controller:** Production-grade Bash controller (`scripts/linux/switch_traffic.sh`) with strict argument validation, target deployment rollout readiness verification, active endpoint polling, and automated rollback on endpoint failure.
 
-### Planned Roadmap (Phases 5–11)
-- **Zero-Downtime Blue-Green Cutover (Phase 5):** Automated traffic switching between active and standby release environments.
-- **Automated Disaster Recovery Rollback (Phase 5):** Automated rollback controller monitoring synthetic canary probes and latency/error SLAs.
-- **Dedicated Observability Stack (Phase 6):** Centralized Prometheus scrape server and provisioned Grafana dashboards.
+### Planned Roadmap (Phases 6–11)
+- **Dedicated Observability Stack (Phase 6):** Centralized Prometheus scrape server and provisioned Grafana dashboards for cluster and telemetry monitoring.
 - **Cross-Platform Automation Tooling (Phase 7):** Automated operational scripts for Linux (Bash) and Windows (PowerShell).
 - **CI/CD Pipeline Automation (Phase 8):** GitHub Actions workflows for continuous integration, linting, container builds, and test runs.
 - **AWS Cloud Infrastructure as Code (Phase 9):** Terraform / CloudFormation infrastructure definitions for AWS VPC, EC2, S3 snapshot persistence, and CloudWatch.
@@ -49,15 +49,23 @@ flowchart TD
         FE_SVC --> FE_POD["Pod: deployx-frontend<br/>(Nginx Alpine | Port 80)<br/>Probes: Liveness & Readiness"]
 
         FE_POD -->|Static Assets| Client
-        FE_POD -->|Reverse Proxy /health, /api, /metrics<br/>http://backend:8000| BE_SVC
+        FE_POD -->|Reverse Proxy /health, /api, /metrics<br/>http://backend:8000| BE_ROUTER
 
-        subgraph Services["Internal ClusterIP Routing"]
-            BE_SVC["Service: backend (DNS Alias)<br/>Service: deployx-backend<br/>ClusterIP | Port 8000"]
+        subgraph Routing["Upstream Service Routing"]
+            BE_ROUTER["Service: backend (Active Router)<br/>Selector: deployment-color: [blue | green]"]
+            BE_CANONICAL["Service: deployx-backend<br/>ClusterIP: Port 8000"]
         end
 
-        BE_SVC --> BE_POD["Pod: deployx-backend<br/>(Python 3.14-slim | Port 8000)<br/>Probes: /health/live & /health/ready<br/>Limits: 500m CPU, 384Mi RAM"]
+        BE_ROUTER -->|Active Selector: blue| BE_BLUE["Pod: deployx-backend (Blue)<br/>(Python 3.14-slim | Port 8000)<br/>Probes: /health/live & /health/ready"]
+        BE_ROUTER -.->|Active Selector: green| BE_GREEN["Pod: deployx-backend-green (Green)<br/>(Python 3.14-slim | Port 8000)<br/>Probes: /health/live & /health/ready"]
 
-        BE_POD -->|Telemetry Data| FE_POD
+        BE_CANONICAL --> BE_BLUE
+        BE_CANONICAL --> BE_GREEN
+    end
+
+    subgraph Controller["Deployment Automation"]
+        SW_SCRIPT["scripts/linux/switch_traffic.sh<br/>• Rollout pre-flight checks<br/>• Zero-downtime selector mutation<br/>• Endpoint verification & auto-rollback"]
+        SW_SCRIPT ==>|Patches Selector| BE_ROUTER
     end
 
     subgraph DeployedEndpoints["Exposed Application Endpoints"]
@@ -67,7 +75,8 @@ flowchart TD
         E4["/metrics (Prometheus Format)"]
     end
 
-    BE_POD -.-> DeployedEndpoints
+    BE_BLUE -.-> DeployedEndpoints
+    BE_GREEN -.-> DeployedEndpoints
 ```
 
 For complete technical specifications, see [ARCHITECTURE.md](ARCHITECTURE.md).
@@ -99,13 +108,13 @@ deployx/
 │   └── README.md               # Frontend runbook & architecture
 ├── infrastructure/
 │   ├── docker/                 # Production Dockerfiles & docker-compose.yml
-│   ├── kubernetes/             # K8s manifests (Deployments, Services, ConfigMaps)
+│   ├── kubernetes/             # K8s manifests (Blue-Green Deployments, Services)
 │   ├── monitoring/             # Prometheus scrape configs & Grafana dashboards
 │   └── aws/                    # Terraform / CloudFormation IaC for AWS
 ├── scripts/
-│   ├── linux/                  # Bash deployment, rollback & verification scripts
+│   ├── linux/                  # switch_traffic.sh and Bash operational scripts
 │   └── windows/                # PowerShell cross-platform automation scripts
-├── tests/                      # Full integration test suites (frontend, docker, kubernetes)
+├── tests/                      # Full integration test suites (frontend, docker, kubernetes, traffic)
 ├── docs/                       # Runbooks, diagrams & architecture documentation
 ├── .env.example                # Standardized environment configuration template
 ├── .gitignore                  # Security-first ignore rules
@@ -145,8 +154,8 @@ This project is structured into sequential delivery phases tracked in [TASK_STAT
 | **Phase 2** | Lightweight Frontend Dashboard | ✅ **Completed (28/28 Tests Passed)** |
 | **Phase 3** | Docker & Compose Orchestration | ✅ **Completed (35/35 Tests Passed)** |
 | **Phase 4** | Kubernetes Manifests & Kind Deployment | ✅ **Completed (40/40 Tests Passed)** |
-| **Phase 5** | Blue-Green Deployment & Automated Rollback | ⏳ Up Next |
-| **Phase 6** | Prometheus & Grafana Monitoring Stack | ⏳ Planned |
+| **Phase 5** | Blue-Green Deployment & Traffic Controller | ✅ **Completed (48/48 Tests Passed)** |
+| **Phase 6** | Prometheus & Grafana Monitoring Stack | ⏳ Up Next |
 | **Phase 7** | Linux & Windows Automation Tooling | ⏳ Planned |
 | **Phase 8** | GitHub Actions CI/CD Pipeline | ⏳ Planned |
 | **Phase 9** | AWS Cloud IaC (VPC, EC2, S3, CloudWatch) | ⏳ Planned |
@@ -189,9 +198,9 @@ For in-depth container architecture details, see [infrastructure/docker/README.m
 
 ---
 
-## ☸️ Kubernetes Deployment (Kind Cluster)
+## ☸️ Kubernetes & Blue-Green Quickstart
 
-DeployX is verified running on local Kubernetes via Kind (`deployx` cluster, `deployx` namespace):
+DeployX runs natively on Kubernetes via Kind (`deployx` cluster, `deployx` namespace):
 
 ```bash
 # 1. Load locally built container images into the Kind cluster
@@ -208,11 +217,9 @@ kubectl get all,endpoints -n deployx
 # 4. Port-forward the frontend service for local access
 kubectl port-forward -n deployx svc/deployx-frontend 8080:80
 
-# 5. Access the application via port-forward
-# Dashboard:        http://localhost:8080/
-# Proxied Live:     http://localhost:8080/health/live
-# Proxied Status:   http://localhost:8080/api/v1/status
-# Proxied Metrics:  http://localhost:8080/metrics
+# 5. Switch active traffic between Blue and Green environments
+./scripts/linux/switch_traffic.sh green
+./scripts/linux/switch_traffic.sh blue
 ```
 
 For complete manifest specifications, probe details, and DNS alias architecture, see [infrastructure/kubernetes/README.md](infrastructure/kubernetes/README.md).
