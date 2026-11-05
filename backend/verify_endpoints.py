@@ -109,9 +109,7 @@ def main() -> int:
             # 6. Incoming Custom X-Request-ID Header
             print("\n--- 6. Testing Custom X-Request-ID Preservation ---")
             custom_req_id = "deployx-live-verify-9900"
-            res_custom = client.get(
-                "/api/v1/status", headers={"X-Request-ID": custom_req_id}
-            )
+            res_custom = client.get("/api/v1/status", headers={"X-Request-ID": custom_req_id})
             print(f"Status: {res_custom.status_code}")
             print(f"Echoed X-Request-ID: {res_custom.headers.get('X-Request-ID')}")
             assert res_custom.headers.get("X-Request-ID") == custom_req_id
@@ -123,7 +121,8 @@ def main() -> int:
             metric_lines = [
                 line
                 for line in res_metrics.text.splitlines()
-                if line.startswith("deployx_") and not line.startswith("deployx_http_request_duration_seconds_bucket")
+                if line.startswith("deployx_")
+                and not line.startswith("deployx_http_request_duration_seconds_bucket")
             ]
             for line in metric_lines[:15]:
                 print(f"Metric: {line}")

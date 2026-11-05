@@ -164,13 +164,17 @@ if ! command -v docker >/dev/null 2>&1; then
     log_msg "WARN" "Pre-flight: docker CLI not found in PATH"
 fi
 
-echo "==> [Pre-flight] Verifying Kubernetes cluster connectivity..."
-if ! kubectl cluster-info >/dev/null 2>&1; then
-    echo "Error: Cannot connect to Kubernetes cluster. Ensure cluster is running and KUBECONFIG is valid." >&2
-    log_msg "ERROR" "Pre-flight failed: Cannot connect to Kubernetes cluster"
-    exit 1
+if [[ "$DRY_RUN" == "false" ]]; then
+    echo "==> [Pre-flight] Verifying Kubernetes cluster connectivity..."
+    if ! kubectl cluster-info >/dev/null 2>&1; then
+        echo "Error: Cannot connect to Kubernetes cluster. Ensure cluster is running and KUBECONFIG is valid." >&2
+        log_msg "ERROR" "Pre-flight failed: Cannot connect to Kubernetes cluster"
+        exit 1
+    fi
+    echo "    Cluster is connected and responsive."
+else
+    echo "==> [Pre-flight] Skipping live cluster connectivity check (dry-run mode active)..."
 fi
-echo "    Cluster is connected and responsive."
 
 # ------------------------------------------------------------------------------
 # 5. Manifest Validation (Dry-Run)

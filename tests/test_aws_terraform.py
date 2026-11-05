@@ -60,7 +60,7 @@ def test_terraform_versions_and_providers() -> None:
     assert '"~> 5.0"' in versions_content
 
     providers_content = (TF_DIR / "providers.tf").read_text(encoding="utf-8")
-    assert "provider \"aws\"" in providers_content
+    assert 'provider "aws"' in providers_content
     assert "default_tags" in providers_content
     assert 'ManagedBy   = "Terraform"' in providers_content
     assert 'Phase       = "9-Cloud-IaC"' in providers_content
@@ -98,11 +98,13 @@ def test_terraform_variables_completeness() -> None:
         "github_repository",
     ]
     for var_name in expected_vars:
-        assert f'variable "{var_name}"' in vars_content, f"Variable '{var_name}' not defined in variables.tf"
+        assert f'variable "{var_name}"' in vars_content, (
+            f"Variable '{var_name}' not defined in variables.tf"
+        )
 
     # Verify cost-conscious default values
     assert 'default     = "t3.micro"' in vars_content  # Free-tier eligible EC2
-    assert 'default     = false' in vars_content       # NAT Gateway and SSH disabled by default
+    assert "default     = false" in vars_content  # NAT Gateway and SSH disabled by default
 
 
 # ------------------------------------------------------------------------------
@@ -151,7 +153,7 @@ def test_security_group_least_privilege() -> None:
     assert "var.enable_ssh_port && length(var.ssh_allowed_cidrs) > 0" in sec_content
 
     # Internal FastAPI port 8000 must be restricted strictly to VPC CIDR and never 0.0.0.0/0
-    match = re.search(r'ingress\s*\{[^}]*?var\.backend_internal_port[^}]*?\}', sec_content)
+    match = re.search(r"ingress\s*\{[^}]*?var\.backend_internal_port[^}]*?\}", sec_content)
     assert match is not None, "Could not find ingress block for backend_internal_port"
     backend_ingress_block = match.group(0)
     assert "var.vpc_cidr" in backend_ingress_block
@@ -248,7 +250,9 @@ def test_outputs_completeness_and_safety() -> None:
         "github_actions_role_arn",
     ]
     for out_name in expected_outputs:
-        assert f'output "{out_name}"' in outputs_content, f"Output '{out_name}' missing from outputs.tf"
+        assert f'output "{out_name}"' in outputs_content, (
+            f"Output '{out_name}' missing from outputs.tf"
+        )
 
     forbidden_output_terms = ["password", "secret_key", "access_key", "token_value"]
     for term in forbidden_output_terms:

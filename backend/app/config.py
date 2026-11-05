@@ -4,7 +4,6 @@ Loads environment variables with secure defaults using Pydantic Settings.
 Never stores or hardcodes secrets.
 """
 
-
 from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 

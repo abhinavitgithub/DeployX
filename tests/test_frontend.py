@@ -31,6 +31,7 @@ def client() -> TestClient:
 # 1. Static Asset Presence & File Structure Tests
 # ==============================================================================
 
+
 def test_frontend_files_exist() -> None:
     """Verify that all required frontend assets exist in the project tree."""
     required_files = [
@@ -49,6 +50,7 @@ def test_frontend_files_exist() -> None:
 # ==============================================================================
 # 2. HTML Structure, DOM IDs & Accessibility Tests
 # ==============================================================================
+
 
 def test_html_title_and_viewport() -> None:
     """Verify index.html contains correct title and responsive viewport tag."""
@@ -98,7 +100,9 @@ def test_html_required_dom_element_ids() -> None:
     ]
 
     for element_id in expected_ids:
-        assert f'id="{element_id}"' in html, f"Missing required element ID in index.html: {element_id}"
+        assert f'id="{element_id}"' in html, (
+            f"Missing required element ID in index.html: {element_id}"
+        )
 
 
 def test_html_honest_architectural_states() -> None:
@@ -111,13 +115,17 @@ def test_html_honest_architectural_states() -> None:
 
     # Verify sections exist with honest descriptions
     assert "Blue-Green Deployment Engine" in html
-    assert "Cluster Telemetry &amp; Workload Pods" in html or "Cluster Telemetry & Workload Pods" in html
+    assert (
+        "Cluster Telemetry &amp; Workload Pods" in html
+        or "Cluster Telemetry & Workload Pods" in html
+    )
     assert "Automated DR Rollback Controller" in html
 
 
 # ==============================================================================
 # 3. Security & Safe DOM Rendering Audit
 # ==============================================================================
+
 
 def test_zero_unsafe_innerhtml_in_javascript() -> None:
     """Audit all frontend JavaScript to ensure zero unsafe innerHTML usage."""
@@ -137,6 +145,7 @@ def test_zero_unsafe_innerhtml_in_javascript() -> None:
 # ==============================================================================
 # 4. CSS Dark-Theme & Responsive Media Queries
 # ==============================================================================
+
 
 def test_css_dark_theme_and_responsive_rules() -> None:
     """Verify stylesheet provides WCAG dark palette and responsive breakpoints."""
@@ -161,6 +170,7 @@ def test_css_dark_theme_and_responsive_rules() -> None:
 # ==============================================================================
 # 5. Backend CORS & Endpoint Integration Tests
 # ==============================================================================
+
 
 def test_backend_cors_allows_frontend_origin(client: TestClient) -> None:
     """Verify that the FastAPI backend accepts CORS requests from the frontend origin."""
@@ -222,6 +232,7 @@ def test_backend_endpoints_consumed_by_frontend(client: TestClient) -> None:
 # ==============================================================================
 # 6. Sidebar Navigation & Active Tracking Tests
 # ==============================================================================
+
 
 def test_sidebar_navigation_anchors_match_section_ids() -> None:
     """Verify that all sidebar navigation anchor links resolve to valid section IDs."""

@@ -103,19 +103,25 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
-      - name: Set up kubectl
+      - name: Set up Kind Cluster for Schema Discovery
         run: |
-          curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
-          chmod +x ./kubectl
-          sudo mv ./kubectl /usr/local/bin/kubectl
+          if ! command -v kind >/dev/null 2>&1; then
+            curl -Lo ./kind https://kind.sigs.k8s.io/dl/v0.24.0/kind-linux-amd64
+            chmod +x ./kind
+            sudo mv ./kind /usr/local/bin/kind
+          fi
+          kind create cluster --name ci-validation --wait 60s
 
       - name: Dry-Run Validate Kubernetes Manifests
         run: |
           kubectl apply --dry-run=client -f infrastructure/kubernetes/namespace.yaml
+          kubectl apply --dry-run=client -f infrastructure/kubernetes/configmap.yaml
+          kubectl apply --dry-run=client -f infrastructure/kubernetes/storage.yaml
           kubectl apply --dry-run=client -f infrastructure/kubernetes/backend.yaml
           kubectl apply --dry-run=client -f infrastructure/kubernetes/backend-green.yaml
           kubectl apply --dry-run=client -f infrastructure/kubernetes/backend-alias.yaml
           kubectl apply --dry-run=client -f infrastructure/kubernetes/frontend.yaml
+          kubectl apply --dry-run=client -f infrastructure/kubernetes/ingress.yaml
 
       - name: Dry-Run Validate Monitoring Manifests
         run: |

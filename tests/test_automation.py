@@ -186,12 +186,34 @@ def test_deploy_missing_kubectl_fails(mock_bin_dir: Path) -> None:
     """Deploy script fails cleanly when kubectl is missing from PATH."""
     bash_bin = shutil.which("bash") or "/bin/bash"
     env = os.environ.copy()
+
+    # Provide core Unix utilities in a dedicated directory without kubectl
+    core_bin = mock_bin_dir / "core_bin"
+    core_bin.mkdir(parents=True, exist_ok=True)
+    for tool in [
+        "date",
+        "dirname",
+        "mkdir",
+        "echo",
+        "cat",
+        "tr",
+        "grep",
+        "sed",
+        "sleep",
+        "basename",
+    ]:
+        tool_path = shutil.which(tool)
+        if tool_path:
+            try:
+                (core_bin / tool).symlink_to(tool_path)
+            except OSError:
+                pass
+
     # Filter PATH to exclude directories containing kubectl
     clean_paths = [
-        p for p in env.get("PATH", "").split(os.pathsep)
-        if p and not (Path(p) / "kubectl").exists()
+        p for p in env.get("PATH", "").split(os.pathsep) if p and not (Path(p) / "kubectl").exists()
     ]
-    env["PATH"] = os.pathsep.join(clean_paths)
+    env["PATH"] = os.pathsep.join([str(core_bin)] + clean_paths)
 
     result = subprocess.run(
         [bash_bin, str(LINUX_DIR / "deploy.sh")],
@@ -451,7 +473,10 @@ exit 0
         check=False,
     )
     assert result.returncode == 1
-    assert "actively receiving traffic" in result.stderr or "actively receiving traffic" in result.stdout
+    assert (
+        "actively receiving traffic" in result.stderr
+        or "actively receiving traffic" in result.stdout
+    )
 
 
 # ------------------------------------------------------------------------------
@@ -462,5 +487,7 @@ def test_powershell_scripts_have_param_blocks() -> None:
     for ps_script in WINDOWS_DIR.glob("*.ps1"):
         content = ps_script.read_text(encoding="utf-8")
         assert "[CmdletBinding()]" in content, f"{ps_script.name} is missing [CmdletBinding()]"
-        assert "param (" in content or "param(" in content, f"{ps_script.name} is missing param block"
+        assert "param (" in content or "param(" in content, (
+            f"{ps_script.name} is missing param block"
+        )
         assert "exit 0" in content, f"{ps_script.name} is missing exit 0"

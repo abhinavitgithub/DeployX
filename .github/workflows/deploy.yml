@@ -61,12 +61,23 @@ jobs:
           chmod +x ./kubectl
           sudo mv ./kubectl /usr/local/bin/kubectl
 
+      - name: Set up Kind Cluster (for Dry-Run Validation)
+        if: inputs.dry_run == true
+        run: |
+          if ! command -v kind >/dev/null 2>&1; then
+            curl -Lo ./kind https://kind.sigs.k8s.io/dl/v0.24.0/kind-linux-amd64
+            chmod +x ./kind
+            sudo mv ./kind /usr/local/bin/kind
+          fi
+          kind create cluster --name deployx-cd-val --wait 60s
+
       - name: Configure AWS OIDC Credentials (AWS EKS Phase 9 Preparedness)
         if: inputs.dry_run == false && env.AWS_ROLE_ARN != ''
-        # uses: aws-actions/configure-aws-credentials@e3ddf4a3c99b037d622eb1c632863b44180846da # v4.0.2
-        run: |
-          echo "AWS OIDC role assumption hook configured for Phase 9 EKS deployment."
-          echo "Target Environment: ${{ inputs.environment }}"
+        uses: aws-actions/configure-aws-credentials@e3ddf4a3c99b037d622eb1c632863b44180846da # v4.0.2
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: us-east-1
+          audience: sts.amazonaws.com
         env:
           AWS_ROLE_ARN: ${{ secrets.AWS_ROLE_ARN }}
 

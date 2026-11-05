@@ -114,14 +114,18 @@ if (-not $dockerCmd) {
     Write-Host "Warning: 'docker' CLI not found in PATH. Continuing with kubectl only." -ForegroundColor DarkYellow
 }
 
-Write-Host "==> [Pre-flight] Verifying Kubernetes cluster connectivity..." -ForegroundColor Yellow
-$clusterInfo = kubectl cluster-info 2>&1
-if ($LASTEXITCODE -ne 0) {
-    Write-Error "Error: Cannot connect to Kubernetes cluster. Ensure cluster is running and KUBECONFIG is valid."
-    Write-Log "ERROR" "Pre-flight failed: Cannot connect to Kubernetes cluster"
-    exit 1
+if (-not $DryRun) {
+    Write-Host "==> [Pre-flight] Verifying Kubernetes cluster connectivity..." -ForegroundColor Yellow
+    $clusterInfo = kubectl cluster-info 2>&1
+    if ($LASTEXITCODE -ne 0) {
+        Write-Error "Error: Cannot connect to Kubernetes cluster. Ensure cluster is running and KUBECONFIG is valid."
+        Write-Log "ERROR" "Pre-flight failed: Cannot connect to Kubernetes cluster"
+        exit 1
+    }
+    Write-Host "    Cluster is connected and responsive." -ForegroundColor Green
+} else {
+    Write-Host "==> [Pre-flight] Skipping live cluster connectivity check (dry-run mode active)..." -ForegroundColor Yellow
 }
-Write-Host "    Cluster is connected and responsive." -ForegroundColor Green
 
 # ------------------------------------------------------------------------------
 # 3. Manifest Validation (Dry-Run)

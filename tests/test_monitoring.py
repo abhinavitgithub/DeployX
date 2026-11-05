@@ -89,7 +89,9 @@ def test_prometheus_manifest_and_contracts() -> None:
 
     # Resource constraints check
     limits = container["resources"]["limits"]
-    assert limits["memory"] == "384Mi", f"Prometheus memory limit must be <= 384Mi, got {limits['memory']}"
+    assert limits["memory"] == "384Mi", (
+        f"Prometheus memory limit must be <= 384Mi, got {limits['memory']}"
+    )
 
     # Probes check
     assert container["livenessProbe"]["httpGet"]["path"] == "/-/healthy"
@@ -144,7 +146,9 @@ def test_grafana_manifest_and_contracts() -> None:
 
     # Resource constraints check
     limits = container["resources"]["limits"]
-    assert limits["memory"] == "192Mi", f"Grafana memory limit must be <= 192Mi, got {limits['memory']}"
+    assert limits["memory"] == "192Mi", (
+        f"Grafana memory limit must be <= 192Mi, got {limits['memory']}"
+    )
 
     # Probes check
     assert container["livenessProbe"]["httpGet"]["path"] == "/api/health"
@@ -187,13 +191,24 @@ def test_grafana_dashboard_json_integrity() -> None:
     # Check all 10 verified PromQL queries
     assert 'up{job="deployx-backend"}' in combined_exprs
     assert "deployx_application_uptime_seconds" in combined_exprs
-    assert 'sum(rate(deployx_http_requests_total{status=~"5.."}[5m])) or vector(0)' in combined_exprs
+    assert (
+        'sum(rate(deployx_http_requests_total{status=~"5.."}[5m])) or vector(0)' in combined_exprs
+    )
     assert "sum(rate(deployx_http_requests_total[5m]))" in combined_exprs
     assert "sum by (handler) (rate(deployx_http_requests_total[5m]))" in combined_exprs
     assert "sum by (status) (rate(deployx_http_requests_total[5m]))" in combined_exprs
-    assert "histogram_quantile(0.50, sum by (le) (rate(deployx_http_request_duration_seconds_bucket[5m])))" in combined_exprs
-    assert "histogram_quantile(0.95, sum by (le) (rate(deployx_http_request_duration_seconds_bucket[5m])))" in combined_exprs
-    assert "histogram_quantile(0.99, sum by (le) (rate(deployx_http_request_duration_seconds_bucket[5m])))" in combined_exprs
+    assert (
+        "histogram_quantile(0.50, sum by (le) (rate(deployx_http_request_duration_seconds_bucket[5m])))"
+        in combined_exprs
+    )
+    assert (
+        "histogram_quantile(0.95, sum by (le) (rate(deployx_http_request_duration_seconds_bucket[5m])))"
+        in combined_exprs
+    )
+    assert (
+        "histogram_quantile(0.99, sum by (le) (rate(deployx_http_request_duration_seconds_bucket[5m])))"
+        in combined_exprs
+    )
     assert "deployx_application_info" in combined_exprs
 
 

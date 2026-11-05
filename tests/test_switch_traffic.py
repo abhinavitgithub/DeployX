@@ -232,4 +232,4 @@ exit 0
     # Verify rollback patch was executed
     calls = log_file.read_text(encoding="utf-8")
     assert "patch service backend" in calls
-    assert "deployment-color\":\"blue\"" in calls
+    assert 'deployment-color":"blue"' in calls

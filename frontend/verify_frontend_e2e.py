@@ -118,13 +118,17 @@ def main() -> int:
             res_live = client.get(f"{BACKEND_URL}/health/live")
             assert res_live.status_code == 200
             assert res_live.json().get("status") == "alive"
-            print(f"[PASS] 2. Live endpoint /health/live validated: status={res_live.json()['status']}")
+            print(
+                f"[PASS] 2. Live endpoint /health/live validated: status={res_live.json()['status']}"
+            )
 
             # 3. Readiness endpoint check
             res_ready = client.get(f"{BACKEND_URL}/health/ready")
             assert res_ready.status_code == 200
             assert res_ready.json().get("status") == "ready"
-            print(f"[PASS] 3. Readiness endpoint /health/ready validated: status={res_ready.json()['status']}")
+            print(
+                f"[PASS] 3. Readiness endpoint /health/ready validated: status={res_ready.json()['status']}"
+            )
 
             # 4. Status endpoint check
             res_status = client.get(f"{BACKEND_URL}/api/v1/status")
@@ -132,7 +136,9 @@ def main() -> int:
             status_json = res_status.json()
             assert status_json.get("app_name") == "deployx-backend"
             assert status_json.get("version") == "1.0.0"
-            print(f"[PASS] 4. Status endpoint validated: app={status_json['app_name']} v{status_json['version']}")
+            print(
+                f"[PASS] 4. Status endpoint validated: app={status_json['app_name']} v{status_json['version']}"
+            )
 
             # 5. Metrics endpoint check & Node.js parser execution
             res_metrics = client.get(f"{BACKEND_URL}/metrics")
@@ -145,7 +151,9 @@ def main() -> int:
                 text=True,
             )
             assert node_res.returncode == 0, f"Node parser failed: {node_res.stderr}"
-            print("[PASS] 5. Metrics parsed correctly (average latency, status dist & total requests verified).")
+            print(
+                "[PASS] 5. Metrics parsed correctly (average latency, status dist & total requests verified)."
+            )
 
             # 6. Manual refresh & CORS verification
             res_cors = client.get(
@@ -153,13 +161,17 @@ def main() -> int:
                 headers={"Origin": "http://localhost:3000"},
             )
             assert res_cors.headers.get("access-control-allow-origin") == "http://localhost:3000"
-            print("[PASS] 6. Manual refresh & CORS preflight accepted for origin http://localhost:3000.")
+            print(
+                "[PASS] 6. Manual refresh & CORS preflight accepted for origin http://localhost:3000."
+            )
 
             # 7. Polling interval & non-overlapping request logic
             dashboard_js = (FRONTEND_DIR / "js" / "dashboard.js").read_text(encoding="utf-8")
             assert "POLL_INTERVAL_MS = 10000" in dashboard_js
             assert "if (isFetching) return;" in dashboard_js
-            print("[PASS] 7. Polling configuration validated: 10s interval & isFetching concurrency lock verified.")
+            print(
+                "[PASS] 7. Polling configuration validated: 10s interval & isFetching concurrency lock verified."
+            )
 
             # 8. Backend disconnection simulation
             print("--- Testing Failure & Disconnection Resilience ---")
@@ -172,7 +184,9 @@ def main() -> int:
             except (httpx.ConnectError, httpx.ReadError):
                 disconnected = True
             assert disconnected, "Backend should be unreachable after termination"
-            print("[PASS] 8. Backend disconnection detected properly: ConnectError raised, triggering alert banner.")
+            print(
+                "[PASS] 8. Backend disconnection detected properly: ConnectError raised, triggering alert banner."
+            )
 
             # 9. Backend recovery simulation
             print("--- Testing Recovery Resilience ---")
@@ -189,7 +203,9 @@ def main() -> int:
             assert "grid-template-columns: repeat(auto-fit, minmax(240px, 1fr))" in styles_css
             html_text = (FRONTEND_DIR / "index.html").read_text(encoding="utf-8")
             assert re.search(r'id=["\']menu-toggle["\']', html_text) is not None
-            print("[PASS] 10. Mobile and desktop layouts verified (responsive media queries & mobile drawer present).")
+            print(
+                "[PASS] 10. Mobile and desktop layouts verified (responsive media queries & mobile drawer present)."
+            )
 
         print("=" * 65)
         print(" [SUCCESS] ALL 10 PHASE 2 OPERATIONAL TESTS PASSED! ")

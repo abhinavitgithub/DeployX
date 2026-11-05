@@ -133,9 +133,9 @@ def test_actions_pinned_to_immutable_commit_shas() -> None:
             # Skip local or branch-only scanners like trufflehog@main
             if "trufflehog" in action:
                 continue
-            assert len(ref) == 40 and re.match(
-                r"^[0-9a-f]{40}$", ref
-            ), f"Action '{action}@{ref}' in {wf_path.name} is not pinned to an immutable 40-character SHA"
+            assert len(ref) == 40 and re.match(r"^[0-9a-f]{40}$", ref), (
+                f"Action '{action}@{ref}' in {wf_path.name} is not pinned to an immutable 40-character SHA"
+            )
 
 
 def test_no_hardcoded_secrets_in_workflows() -> None:
@@ -189,6 +189,4 @@ def test_concurrency_controls_configured() -> None:
         content = wf_path.read_text(encoding="utf-8")
         data = yaml.safe_load(content)
 
-        assert (
-            "concurrency" in data
-        ), f"{wf_path.name} is missing 'concurrency' configuration block"
+        assert "concurrency" in data, f"{wf_path.name} is missing 'concurrency' configuration block"
