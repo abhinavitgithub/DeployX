@@ -1,0 +1,191 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: deployx-prometheus-config
+  namespace: deployx
+  labels:
+    app.kubernetes.io/name: prometheus
+    app.kubernetes.io/part-of: deployx
+    app.kubernetes.io/component: monitoring
+data:
+  prometheus.yml: |
+    global:
+      scrape_interval: 15s
+      evaluation_interval: 15s
+      scrape_timeout: 10s
+
+    rule_files:
+      - /etc/prometheus/alerts.yml
+
+    scrape_configs:
+      - job_name: "deployx-backend"
+        scrape_interval: 15s
+        scrape_timeout: 10s
+        metrics_path: /metrics
+        static_configs:
+          - targets: ["backend.deployx.svc.cluster.local:8000"]
+            labels:
+              app: "deployx-backend"
+              service: "backend"
+              environment: "production"
+
+      - job_name: "prometheus"
+        scrape_interval: 15s
+        scrape_timeout: 10s
+        static_configs:
+          - targets: ["localhost:9090"]
+            labels:
+              app: "deployx-prometheus"
+
+  alerts.yml: |
+    groups:
+      - name: deployx-backend-alerts
+        rules:
+          - alert: DeployXBackendDown
+            expr: up{job="deployx-backend"} == 0
+            for: 30s
+            labels:
+              severity: critical
+              component: backend
+            annotations:
+              summary: "DeployX backend target is unreachable"
+              description: "Prometheus cannot scrape backend at backend.deployx.svc.cluster.local:8000 for > 30s."
+
+          - alert: DeployXHighErrorRate
+            expr: (sum(rate(deployx_http_requests_total{status=~"5.."}[2m])) / sum(rate(deployx_http_requests_total[2m]))) * 100 > 5
+            for: 1m
+            labels:
+              severity: warning
+              component: backend
+            annotations:
+              summary: "DeployX backend HTTP 5xx error rate is elevated"
+              description: "HTTP 5xx error rate exceeds 5% of total requests over the last 2 minutes."
+
+          - alert: DeployXHighRequestLatency
+            expr: histogram_quantile(0.95, sum(rate(deployx_http_request_duration_seconds_bucket[2m])) by (le)) > 0.5
+            for: 1m
+            labels:
+              severity: warning
+              component: backend
+            annotations:
+              summary: "DeployX backend p95 request latency exceeds 500ms"
+              description: "Backend p95 latency is above 0.5 seconds for over 1 minute."
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: deployx-prometheus
+  namespace: deployx
+  labels:
+    app: deployx-prometheus
+    app.kubernetes.io/name: prometheus
+    app.kubernetes.io/part-of: deployx
+    app.kubernetes.io/component: monitoring
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: deployx-prometheus
+  template:
+    metadata:
+      labels:
+        app: deployx-prometheus
+        app.kubernetes.io/name: prometheus
+        app.kubernetes.io/part-of: deployx
+        app.kubernetes.io/component: monitoring
+    spec:
+      securityContext:
+        runAsUser: 65534
+        runAsGroup: 65534
+        fsGroup: 65534
+        runAsNonRoot: true
+      containers:
+        - name: prometheus
+          image: prom/prometheus:v2.54.1
+          imagePullPolicy: IfNotPresent
+          args:
+            - "--config.file=/etc/prometheus/prometheus.yml"
+            - "--storage.tsdb.path=/prometheus"
+            - "--storage.tsdb.retention.time=24h"
+            - "--storage.tsdb.retention.size=128MB"
+            - "--web.enable-lifecycle"
+            - "--web.console.libraries=/usr/share/prometheus/console_libraries"
+            - "--web.console.templates=/usr/share/prometheus/consoles"
+          ports:
+            - name: http-web
+              containerPort: 9090
+              protocol: TCP
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              cpu: 250m
+              memory: 384Mi
+          livenessProbe:
+            httpGet:
+              path: /-/healthy
+              port: http-web
+            initialDelaySeconds: 10
+            periodSeconds: 15
+            timeoutSeconds: 5
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /-/ready
+              port: http-web
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+          volumeMounts:
+            - name: config-volume
+              mountPath: /etc/prometheus
+            - name: storage-volume
+              mountPath: /prometheus
+      volumes:
+        - name: config-volume
+          configMap:
+            name: deployx-prometheus-config
+        - name: storage-volume
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: prometheus
+  namespace: deployx
+  labels:
+    app: deployx-prometheus
+    app.kubernetes.io/name: prometheus
+    app.kubernetes.io/part-of: deployx
+    app.kubernetes.io/component: monitoring
+spec:
+  type: ClusterIP
+  selector:
+    app: deployx-prometheus
+  ports:
+    - name: http-web
+      port: 9090
+      targetPort: http-web
+      protocol: TCP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: deployx-prometheus
+  namespace: deployx
+  labels:
+    app: deployx-prometheus
+    app.kubernetes.io/name: prometheus
+    app.kubernetes.io/part-of: deployx
+    app.kubernetes.io/component: monitoring
+spec:
+  type: ClusterIP
+  selector:
+    app: deployx-prometheus
+  ports:
+    - name: http-web
+      port: 9090
+      targetPort: http-web
+      protocol: TCP

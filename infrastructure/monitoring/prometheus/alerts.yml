@@ -1,0 +1,32 @@
+groups:
+  - name: deployx-backend-alerts
+    rules:
+      - alert: DeployXBackendDown
+        expr: up{job="deployx-backend"} == 0
+        for: 30s
+        labels:
+          severity: critical
+          component: backend
+        annotations:
+          summary: "DeployX backend target is unreachable"
+          description: "Prometheus cannot scrape backend at backend.deployx.svc.cluster.local:8000 for > 30s."
+
+      - alert: DeployXHighErrorRate
+        expr: (sum(rate(deployx_http_requests_total{status=~"5.."}[2m])) / sum(rate(deployx_http_requests_total[2m]))) * 100 > 5
+        for: 1m
+        labels:
+          severity: warning
+          component: backend
+        annotations:
+          summary: "DeployX backend HTTP 5xx error rate is elevated"
+          description: "HTTP 5xx error rate exceeds 5% of total requests over the last 2 minutes."
+
+      - alert: DeployXHighRequestLatency
+        expr: histogram_quantile(0.95, sum(rate(deployx_http_request_duration_seconds_bucket[2m])) by (le)) > 0.5
+        for: 1m
+        labels:
+          severity: warning
+          component: backend
+        annotations:
+          summary: "DeployX backend p95 request latency exceeds 500ms"
+          description: "Backend p95 latency is above 0.5 seconds for over 1 minute."

@@ -1,0 +1,35 @@
+# DeployX — Staging Environment Configuration (Example)
+# Cost-conscious configuration suitable for development, staging, and automated CI/CD testing.
+
+aws_region  = "us-east-1"
+environment = "staging"
+owner       = "DevOps"
+
+# Networking
+vpc_cidr            = "10.0.0.0/16"
+availability_zones  = ["us-east-1a", "us-east-1b"]
+public_subnet_cidrs = ["10.0.1.0/24", "10.0.2.0/24"]
+private_subnet_cidrs = ["10.0.10.0/24", "10.0.20.0/24"]
+enable_nat_gateway  = false # Disable NAT Gateway to avoid ~$32/month AWS charge
+
+# Compute (AWS Free Tier Eligible)
+instance_type    = "t3.micro"
+root_volume_size = 20
+
+# Security (Zero Open SSH Ports; Access via AWS Systems Manager)
+enable_ssh_port       = false
+ssh_allowed_cidrs     = []
+allowed_ingress_cidrs = ["0.0.0.0/0"]
+
+# S3 Backup Retention
+s3_backup_retention_days   = 30
+s3_glacier_transition_days = 14
+
+# Monitoring
+cloudwatch_log_retention_days = 7
+enable_cloudwatch_alarms      = true
+cpu_utilization_threshold     = 85
+
+# GitHub Actions OIDC Integration
+enable_github_oidc = true
+github_repository  = "abhinavitgithub/DeployX"

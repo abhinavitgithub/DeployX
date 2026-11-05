@@ -1,0 +1,271 @@
+#!/usr/bin/env bash
+# DeployX — EC2 Docker Host Bootstrap Script (Amazon Linux 2023)
+# Automates Docker, Compose, CloudWatch Agent, and systemd service provisioning.
+
+set -euo pipefail
+
+INIT_LOG="/var/log/deployx-init.log"
+exec > >(tee -a "$INIT_LOG") 2>&1
+
+echo "================================================================================"
+echo " Starting DeployX EC2 Host Initialization: $(date '+%Y-%m-%d %H:%M:%S')"
+echo "================================================================================"
+
+# ------------------------------------------------------------------------------
+# 1. System Package Updates & Dependencies
+# ------------------------------------------------------------------------------
+echo "[1/6] Installing system packages, Docker Engine, and CloudWatch Agent..."
+dnf update -y
+
+# Amazon Linux 2023 pre-bundles curl-minimal; do NOT install full curl as it causes RPM conflicts
+dnf install -y docker git amazon-cloudwatch-agent tar gzip
+
+# Ensure curl command is available via existing curl-minimal
+if ! command -v curl >/dev/null 2>&1; then
+    echo "curl command not found in PATH; installing curl-minimal..."
+    dnf install -y curl-minimal || dnf install -y --allowerasing curl
+fi
+
+# Enable and start Docker service with explicit state verification
+echo "Enabling and starting Docker service..."
+systemctl daemon-reload
+systemctl enable --now docker
+
+if ! systemctl is-active --quiet docker; then
+    echo "ERROR: Docker daemon failed to start." >&2
+    systemctl status docker --no-pager || true
+    journalctl -u docker --no-pager -n 50 || true
+    exit 1
+fi
+echo "Docker Engine active: $(docker --version)"
+
+# Install official Docker Compose CLI Plugin (pinned version)
+echo "Installing Docker Compose CLI plugin..."
+ARCH="$(uname -m)"
+case "$ARCH" in
+    x86_64)  COMPOSE_ARCH="linux-x86_64" ;;
+    aarch64) COMPOSE_ARCH="linux-aarch64" ;;
+    *)       echo "ERROR: Unsupported host architecture: $ARCH" >&2; exit 1 ;;
+esac
+
+COMPOSE_VERSION="v2.29.7"
+DOCKER_CLI_PLUGINS_DIR="/usr/local/lib/docker/cli-plugins"
+mkdir -p "$DOCKER_CLI_PLUGINS_DIR"
+
+if [ ! -x "$DOCKER_CLI_PLUGINS_DIR/docker-compose" ] || ! docker compose version >/dev/null 2>&1; then
+    echo "Downloading Docker Compose $COMPOSE_VERSION ($COMPOSE_ARCH)..."
+    curl -fsSL --retry 3 --retry-delay 2 \
+        "https://github.com/docker/compose/releases/download/$COMPOSE_VERSION/docker-compose-$COMPOSE_ARCH" \
+        -o "$DOCKER_CLI_PLUGINS_DIR/docker-compose"
+    chmod +x "$DOCKER_CLI_PLUGINS_DIR/docker-compose"
+fi
+
+# Provide standalone binary path and symlink for compatibility with systemd and scripts
+ln -sf "$DOCKER_CLI_PLUGINS_DIR/docker-compose" /usr/local/bin/docker-compose
+
+if ! docker compose version; then
+    echo "ERROR: Docker Compose installation failed verification." >&2
+    exit 1
+fi
+
+# ------------------------------------------------------------------------------
+# 2. System User & Application Directory Setup
+# ------------------------------------------------------------------------------
+echo "[2/6] Configuring unprivileged system user and directories..."
+if ! id -u deployx >/dev/null 2>&1; then
+    useradd -u 10001 -m -s /sbin/nologin deployx
+fi
+usermod -aG docker deployx || true
+usermod -aG docker ec2-user || true
+
+DEPLOYX_DIR="/opt/deployx"
+mkdir -p "$DEPLOYX_DIR/data" "$DEPLOYX_DIR/backups"
+chown -R deployx:deployx "$DEPLOYX_DIR"
+chmod -R 775 "$DEPLOYX_DIR"
+
+# ------------------------------------------------------------------------------
+# 3. Write Production Compose Specification
+# ------------------------------------------------------------------------------
+echo "[3/6] Generating Docker Compose topology..."
+cat << 'COMPOSE_EOF' > "$DEPLOYX_DIR/compose.yaml"
+services:
+  backend:
+    image: ${backend_image}
+    container_name: deployx-backend
+    restart: unless-stopped
+    environment:
+      - APP_NAME=deployx-backend
+      - ENVIRONMENT=${environment}
+      - HOST=0.0.0.0
+      - PORT=${backend_internal_port}
+      - LOG_LEVEL=INFO
+      - ALLOWED_ORIGINS=*
+      - S3_BACKUP_BUCKET=${s3_backup_bucket}
+    expose:
+      - "${backend_internal_port}"
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:${backend_internal_port}/health/live')"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+      start_period: 5s
+    deploy:
+      resources:
+        limits:
+          cpus: "0.50"
+          memory: 256M
+        reservations:
+          cpus: "0.10"
+          memory: 64M
+    networks:
+      - deployx-network
+    volumes:
+      - ./data:/app/data
+
+  frontend:
+    image: ${frontend_image}
+    container_name: deployx-frontend
+    restart: unless-stopped
+    ports:
+      - "${app_port}:80"
+    depends_on:
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "-", "http://127.0.0.1:80/health/live"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+      start_period: 5s
+    deploy:
+      resources:
+        limits:
+          cpus: "0.25"
+          memory: 128M
+        reservations:
+          cpus: "0.05"
+          memory: 32M
+    networks:
+      - deployx-network
+
+networks:
+  deployx-network:
+    driver: bridge
+COMPOSE_EOF
+
+chown deployx:deployx "$DEPLOYX_DIR/compose.yaml"
+
+# Write Runtime Environment Template
+cat << ENV_EOF > "$DEPLOYX_DIR/.env"
+ENVIRONMENT=${environment}
+AWS_REGION=${aws_region}
+S3_BACKUP_BUCKET=${s3_backup_bucket}
+CLOUDWATCH_LOG_GROUP=${cloudwatch_log_group}
+APP_PORT=${app_port}
+BACKEND_INTERNAL_PORT=${backend_internal_port}
+ENV_EOF
+
+chmod 600 "$DEPLOYX_DIR/.env"
+chown deployx:deployx "$DEPLOYX_DIR/.env"
+
+# ------------------------------------------------------------------------------
+# 4. Systemd Service Unit (Auto-Recovery on Host Reboot)
+# ------------------------------------------------------------------------------
+echo "[4/6] Installing systemd service unit..."
+cat << 'SYSTEMD_EOF' > /etc/systemd/system/deployx.service
+[Unit]
+Description=DeployX Multi-Container Docker Application
+Requires=docker.service
+After=docker.service network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+WorkingDirectory=/opt/deployx
+User=root
+Group=docker
+ExecStart=/usr/local/lib/docker/cli-plugins/docker-compose up -d --remove-orphans
+ExecStop=/usr/local/lib/docker/cli-plugins/docker-compose down
+TimeoutStartSec=180
+
+[Install]
+WantedBy=multi-user.target
+SYSTEMD_EOF
+
+systemctl daemon-reload
+systemctl enable deployx.service
+
+# ------------------------------------------------------------------------------
+# 5. Amazon CloudWatch Agent Configuration
+# ------------------------------------------------------------------------------
+echo "[5/6] Configuring Amazon CloudWatch Agent for centralized log streaming..."
+mkdir -p /opt/aws/amazon-cloudwatch-agent/etc
+cat << CW_EOF > /opt/aws/amazon-cloudwatch-agent/etc/amazon-cloudwatch-agent.json
+{
+  "agent": {
+    "metrics_collection_interval": 60,
+    "run_as_user": "root"
+  },
+  "logs": {
+    "logs_collected": {
+      "files": {
+        "collect_list": [
+          {
+            "file_path": "/var/log/deployx-init.log",
+            "log_group_name": "${cloudwatch_log_group}",
+            "log_stream_name": "{instance_id}/cloud-init",
+            "timezone": "UTC"
+          },
+          {
+            "file_path": "/opt/deployx/data/deployx_operations.log",
+            "log_group_name": "${cloudwatch_log_group}",
+            "log_stream_name": "{instance_id}/operations",
+            "timezone": "UTC"
+          },
+          {
+            "file_path": "/var/log/messages",
+            "log_group_name": "${cloudwatch_log_group}",
+            "log_stream_name": "{instance_id}/system-messages",
+            "timezone": "UTC"
+          }
+        ]
+      }
+    }
+  }
+}
+CW_EOF
+
+# Start CloudWatch Agent if configuration succeeds
+if [ -x /opt/aws/amazon-cloudwatch-agent/bin/amazon-cloudwatch-agent-ctl ]; then
+    /opt/aws/amazon-cloudwatch-agent/bin/amazon-cloudwatch-agent-ctl \
+        -a fetch-config \
+        -m ec2 \
+        -s \
+        -c file:/opt/aws/amazon-cloudwatch-agent/etc/amazon-cloudwatch-agent.json || true
+    echo "Amazon CloudWatch Agent configured and started."
+fi
+
+# ------------------------------------------------------------------------------
+# 6. Service Launch & Health Verification
+# ------------------------------------------------------------------------------
+echo "[6/6] Launching DeployX systemd service and verifying endpoints..."
+systemctl start deployx.service || true
+
+# Synthetic Poll for Health Endpoint
+PROBE_ATTEMPTS=30
+PROBE_SUCCESS=0
+for ((i=1; i<=PROBE_ATTEMPTS; i++)); do
+    if curl -fs "http://127.0.0.1:${app_port}/health/live" >/dev/null 2>&1; then
+        echo "DeployX Application is OPERATIONAL (HTTP 200) after $i seconds."
+        PROBE_SUCCESS=1
+        break
+    fi
+    sleep 2
+done
+
+if [ "$PROBE_SUCCESS" -eq 1 ]; then
+    echo "DeployX initialization completed successfully: $(date '+%Y-%m-%d %H:%M:%S')"
+else
+    echo "Warning: Health endpoint did not respond with 200 within timeout. Check 'docker compose ps' and logs."
+fi

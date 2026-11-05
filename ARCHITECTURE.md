@@ -158,15 +158,47 @@ The local cluster is deployed using Kind (`kind-deployx` on Kubernetes v1.34.0):
 
 ---
 
-## 5. AWS Cloud Architecture (Production Target)
+## 5. AWS Cloud Architecture & Infrastructure as Code (Phase 9 Implemented)
 
-For production deployment, the platform is architected for high availability and disaster recovery across AWS:
-- **VPC & Networking:** Custom VPC (`10.0.0.0/16`) spanning 2 Availability Zones (`us-east-1a`, `us-east-1b`) with public and private subnets, Internet Gateway, and NAT Gateway.
-- **Compute Layer:** Amazon Elastic Kubernetes Service (EKS) or Auto-Scaling EC2 instances with launch templates running containerized workloads.
-- **Load Balancing:** AWS Application Load Balancer (ALB) with weighted target groups enabling blue-green traffic splits and canary routing.
-- **Disaster Recovery Storage (S3):** S3 bucket with versioning, cross-region replication (CRR), and lifecycle rules for database dumps and deployment state snapshots.
-- **Security & IAM:** IAM roles for service accounts (IRSA) enforcing least privilege; AWS Secrets Manager for secret lifecycle.
-- **Monitoring & Alarms:** Amazon CloudWatch metrics, custom metric filters for 5xx errors, and CloudWatch Alarms triggering automated rollback via SNS/Lambda.
+DeployX implements a production-grade, cost-conscious Terraform infrastructure architecture under `infrastructure/aws/terraform/` designed for high availability, minimal operational cost, and zero-trust security:
+
+### 5.1 Network Topology & VPC Design
+- **Custom VPC:** `10.0.0.0/16` deployed in `us-east-1` spanning 2 Availability Zones (`us-east-1a`, `us-east-1b`).
+- **Subnet Segmentation:**
+  - Public Subnets (`10.0.1.0/24`, `10.0.2.0/24`) attached to an AWS Internet Gateway for external web ingress.
+  - Private Subnets (`10.0.10.0/24`, `10.0.20.0/24`) for isolated workload execution.
+  - **Cost-Controlled NAT Gateway:** Optional NAT Gateway (`enable_nat_gateway = false` by default) to eliminate ~$32.40/month ongoing cloud expenses during development and staging.
+- **Security Groups & PoLP:**
+  - Ingress: HTTP (port 80) and HTTPS (port 443) open to permitted CIDRs.
+  - Internal Isolation: Backend API port (8000) restricted strictly to VPC CIDR (`10.0.0.0/16`).
+  - Zero Open SSH Ports: Port 22 is disabled by default; administrative terminal sessions execute over encrypted AWS Systems Manager (SSM) Session Manager.
+
+### 5.2 Compute & Container Runtime (EC2 Host)
+- **Host Instance:** Hardened Amazon Linux 2023 EC2 instance (`t3.micro` free-tier eligible for staging, `t3.small` for production).
+- **IMDSv2 Enforcement:** Session-oriented Instance Metadata Service (`http_tokens = "required"`, hop limit 2) mitigating SSRF vulnerabilities.
+- **Storage Security:** 20 GiB GP3 root EBS volume encrypted at rest (`encrypted = true`).
+- **Cloud-Init Bootstrapping:** Automatically installs Docker Engine, Compose plugin, and AWS CloudWatch Agent; provisions unprivileged `deployx` system user; writes `compose.yaml`; creates a systemd service unit (`deployx.service`) for automatic container startup on reboot; and verifies initial HTTP 200 health probes.
+
+### 5.3 Disaster Recovery Storage (S3)
+- **Dedicated Bucket:** `deployx-<env>-backups-<suffix>` provisioned with:
+  - 4x Public Access Block (complete public isolation).
+  - Default AES-256 server-side encryption with bucket keys enabled.
+  - Object versioning enabled for state protection against accidental deletion.
+  - Lifecycle policy transitioning backups to `STANDARD_IA` after 30 days and expiring after 90 days.
+  - Enforced TLS-in-transit bucket policy explicitly denying `aws:SecureTransport = false`.
+- **Script Integration:** Integrated with Phase 7 backup tooling (`backup.sh --s3-bucket` and `backup.ps1 -S3Bucket`).
+
+### 5.4 Observability & Alarms (CloudWatch)
+- **Log Group:** `/deployx/<env>` with 14-day retention.
+- **Agent Integration:** Streams `/var/log/deployx-init.log` and `/opt/deployx/data/deployx_operations.log` to CloudWatch.
+- **Metric Alarms:** EC2 CPU Utilization > 80% and StatusCheckFailed > 0 routed to an SNS alert topic.
+
+### 5.5 Identity & Keyless CI/CD (GitHub OIDC)
+- **EC2 Instance Role:** Least-privilege IAM role with `AmazonSSMManagedInstanceCore`, scoped S3 backup actions, and scoped CloudWatch log actions.
+- **GitHub Actions OIDC Role:** Keyless IAM role assumed via OpenID Connect federation (`sts:AssumeRoleWithWebIdentity`) scoped to `repo:abhinavitgithub/DeployX:*`, eliminating long-lived AWS access keys.
+
+### 5.6 Future Cloud Target (EKS Managed Cluster)
+For enterprise multi-node production clusters, the networking and storage layers serve as the foundational VPC for future Amazon EKS cluster deployments.
 
 ---
 

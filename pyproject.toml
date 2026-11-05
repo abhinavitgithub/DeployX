@@ -30,6 +30,6 @@ known-first-party = ["backend"]
 
 [tool.pytest.ini_options]
 minversion = "8.0"
-testpaths = ["backend/tests"]
+testpaths = ["backend/tests", "tests"]
 pythonpath = ["."]
 addopts = "-v --strict-markers"

@@ -1,0 +1,35 @@
+# DeployX — Production Environment Configuration (Example)
+# Production-grade configuration with extended retention and elevated monitoring thresholds.
+
+aws_region  = "us-east-1"
+environment = "production"
+owner       = "DevOps"
+
+# Networking
+vpc_cidr             = "10.0.0.0/16"
+availability_zones   = ["us-east-1a", "us-east-1b"]
+public_subnet_cidrs  = ["10.0.1.0/24", "10.0.2.0/24"]
+private_subnet_cidrs = ["10.0.10.0/24", "10.0.20.0/24"]
+enable_nat_gateway   = false # Set to true if running backend strictly in private subnets with NAT egress
+
+# Compute
+instance_type    = "t3.small"
+root_volume_size = 30
+
+# Security (Zero Open SSH Ports; Access via AWS Systems Manager)
+enable_ssh_port       = false
+ssh_allowed_cidrs     = []
+allowed_ingress_cidrs = ["0.0.0.0/0"]
+
+# S3 Backup Retention
+s3_backup_retention_days   = 180
+s3_glacier_transition_days = 30
+
+# Monitoring
+cloudwatch_log_retention_days = 30
+enable_cloudwatch_alarms      = true
+cpu_utilization_threshold     = 80
+
+# GitHub Actions OIDC Integration
+enable_github_oidc = true
+github_repository  = "abhinavitgithub/DeployX"

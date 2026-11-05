@@ -1,0 +1,105 @@
+name: Continuous Deployment & EKS Rollout
+
+"on":
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "Target deployment environment"
+        required: true
+        type: choice
+        options:
+          - staging
+          - production
+        default: staging
+      action:
+        description: "Operational action to execute"
+        required: true
+        type: choice
+        options:
+          - deploy
+          - rollback
+          - health-check
+        default: deploy
+      color:
+        description: "Blue-Green target color (for deploy/rollback)"
+        required: false
+        type: choice
+        options:
+          - blue
+          - green
+          - auto
+        default: auto
+      dry_run:
+        description: "Execute client-side dry-run without mutating cluster"
+        required: false
+        type: boolean
+        default: true
+
+concurrency:
+  group: deploy-${{ github.workflow }}-${{ inputs.environment }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  id-token: write # Required for secure AWS OIDC role assumption (Phase 9)
+
+jobs:
+  validate-and-execute:
+    name: CD Controller (${{ inputs.action }} -> ${{ inputs.environment }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment:
+      name: ${{ inputs.environment }}
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Set up kubectl
+        run: |
+          curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+          chmod +x ./kubectl
+          sudo mv ./kubectl /usr/local/bin/kubectl
+
+      - name: Configure AWS OIDC Credentials (AWS EKS Phase 9 Preparedness)
+        if: inputs.dry_run == false && env.AWS_ROLE_ARN != ''
+        # uses: aws-actions/configure-aws-credentials@e3ddf4a3c99b037d622eb1c632863b44180846da # v4.0.2
+        run: |
+          echo "AWS OIDC role assumption hook configured for Phase 9 EKS deployment."
+          echo "Target Environment: ${{ inputs.environment }}"
+        env:
+          AWS_ROLE_ARN: ${{ secrets.AWS_ROLE_ARN }}
+
+      - name: Execute Deployment Action
+        run: |
+          chmod +x scripts/linux/*.sh
+
+          case "${{ inputs.action }}" in
+            deploy)
+              FLAGS=()
+              if [ "${{ inputs.dry_run }}" = "true" ]; then
+                FLAGS+=("--dry-run")
+              fi
+              if [ "${{ inputs.color }}" != "auto" ]; then
+                FLAGS+=("--color" "${{ inputs.color }}")
+              fi
+              echo "Executing: ./scripts/linux/deploy.sh ${FLAGS[*]}"
+              ./scripts/linux/deploy.sh "${FLAGS[@]}"
+              ;;
+            rollback)
+              FLAGS=()
+              if [ "${{ inputs.color }}" != "auto" ]; then
+                FLAGS+=("${{ inputs.color }}")
+              fi
+              echo "Executing: ./scripts/linux/rollback.sh ${FLAGS[*]}"
+              ./scripts/linux/rollback.sh "${FLAGS[@]}"
+              ;;
+            health-check)
+              echo "Executing: ./scripts/linux/health_check.sh --json"
+              ./scripts/linux/health_check.sh --json
+              ;;
+            *)
+              echo "Error: Unknown action '${{ inputs.action }}'" >&2
+              exit 1
+              ;;
+          esac

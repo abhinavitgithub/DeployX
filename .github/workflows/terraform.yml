@@ -1,0 +1,153 @@
+name: Terraform AWS Infrastructure Pipeline
+
+"on":
+  push:
+    branches:
+      - main
+    paths:
+      - "infrastructure/aws/**"
+  pull_request:
+    branches:
+      - main
+    paths:
+      - "infrastructure/aws/**"
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "Target deployment environment"
+        required: true
+        type: choice
+        options:
+          - staging
+          - production
+        default: staging
+      action:
+        description: "Terraform action to execute"
+        required: true
+        type: choice
+        options:
+          - plan
+          - apply
+        default: plan
+
+concurrency:
+  group: terraform-${{ github.workflow }}-${{ inputs.environment || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+  id-token: write # Required for keyless AWS OIDC authentication
+
+env:
+  TF_VERSION: "1.10.5"
+  AWS_REGION: "us-east-1"
+  TF_WORKING_DIR: "infrastructure/aws/terraform"
+
+jobs:
+  terraform-validate:
+    name: Terraform Lint, Format & Validate
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@b9cd54a3c349d3f38e8881555d616ced269862dd # v3.1.2
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+
+      - name: Verify Terraform Formatting
+        run: terraform fmt -check -recursive ${{ env.TF_WORKING_DIR }}
+
+      - name: Initialize Terraform (Validation Mode)
+        run: |
+          cd ${{ env.TF_WORKING_DIR }}
+          terraform init -backend=false
+
+      - name: Validate Terraform Syntax & Configuration
+        run: |
+          cd ${{ env.TF_WORKING_DIR }}
+          terraform validate
+
+  terraform-plan:
+    name: Terraform Speculative Plan
+    needs: [terraform-validate]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@b9cd54a3c349d3f38e8881555d616ced269862dd # v3.1.2
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+
+      - name: Configure AWS OIDC Credentials
+        if: env.AWS_ROLE_ARN != ''
+        uses: aws-actions/configure-aws-credentials@e3ddf4a3c99b037d622eb1c632863b44180846da # v4.0.2
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+          audience: sts.amazonaws.com
+        env:
+          AWS_ROLE_ARN: ${{ secrets.AWS_ROLE_ARN }}
+
+      - name: Initialize Terraform Backend
+        run: |
+          cd ${{ env.TF_WORKING_DIR }}
+          terraform init -backend=false
+
+      - name: Execute Speculative Terraform Plan
+        run: |
+          cd ${{ env.TF_WORKING_DIR }}
+          TARGET_ENV="${{ inputs.environment || 'staging' }}"
+          VAR_FILE="environments/$${TARGET_ENV}.tfvars.example"
+          echo "Generating speculative plan for environment: $${TARGET_ENV}"
+          terraform plan -var-file="$VAR_FILE" -no-color
+
+  terraform-apply:
+    name: Terraform Controlled Apply
+    needs: [terraform-plan]
+    if: github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'apply'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment:
+      name: ${{ inputs.environment }} # Requires manual GitHub Environment approval gate for production
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@b9cd54a3c349d3f38e8881555d616ced269862dd # v3.1.2
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+
+      - name: Configure AWS OIDC Credentials
+        uses: aws-actions/configure-aws-credentials@e3ddf4a3c99b037d622eb1c632863b44180846da # v4.0.2
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+          audience: sts.amazonaws.com
+
+      - name: Initialize Terraform Backend
+        run: |
+          cd ${{ env.TF_WORKING_DIR }}
+          terraform init
+
+      - name: Apply Infrastructure Changes
+        run: |
+          cd ${{ env.TF_WORKING_DIR }}
+          TARGET_ENV="${{ inputs.environment }}"
+          VAR_FILE="environments/$${TARGET_ENV}.tfvars.example"
+          echo "Executing approved terraform apply for: $${TARGET_ENV}"
+          terraform apply -var-file="$VAR_FILE" -auto-approve

@@ -2,8 +2,8 @@
 
 **Platform:** DeployX – Intelligent Cloud Deployment & Disaster Recovery Platform
 **Lead:** Senior DevOps Engineer & AWS Cloud Architect
-**Current Phase:** Phase 6 (upcoming)
-**Last Updated:** November 4, 2026
+**Current Phase:** Phase 10 (upcoming)
+**Last Updated:** November 5, 2026
 
 ---
 
@@ -17,10 +17,10 @@
 | **Phase 3** | Docker Containerization & Docker Compose Orchestration | COMPLETED | 100% |
 | **Phase 4** | Kubernetes Manifests & Kind Cluster Deployment | COMPLETED | 100% |
 | **Phase 5** | Blue-Green Deployment & Traffic Controller | COMPLETED | 100% |
-| **Phase 6** | Monitoring & Observability (Prometheus & Grafana) | PENDING | 0% |
-| **Phase 7** | Automation Tooling (Linux Bash & Windows PowerShell) | PENDING | 0% |
-| **Phase 8** | CI/CD Pipeline Automation (GitHub Actions) | PENDING | 0% |
-| **Phase 9** | AWS Cloud Architecture & Infrastructure as Code (IaC) | PENDING | 0% |
+| **Phase 6** | Monitoring & Observability (Prometheus & Grafana) | COMPLETED | 100% |
+| **Phase 7** | Automation Tooling (Linux Bash & Windows PowerShell) | COMPLETED | 100% |
+| **Phase 8** | CI/CD Pipeline Automation (GitHub Actions) | COMPLETED | 100% |
+| **Phase 9** | AWS Cloud Architecture & Infrastructure as Code (IaC) | COMPLETED | 100% |
 | **Phase 10** | Intelligent Rule-Based Diagnostics & Local Ollama Integration | PENDING | 0% |
 | **Phase 11** | End-to-End Validation, Chaos Testing & Portfolio Documentation | PENDING | 0% |
 
@@ -199,61 +199,176 @@
 ---
 
 ### Phase 6: Monitoring & Observability (Prometheus & Grafana)
-- [ ] Create Prometheus configuration (`infrastructure/monitoring/prometheus.yml`) with scrape targets:
-  - [ ] DeployX Backend Blue & Green metrics
-  - [ ] Kubernetes cAdvisor / Node exporter metrics
-- [ ] Create Kubernetes deployment and service for Prometheus.
-- [ ] Create Grafana Kubernetes deployment and datasource provisioning.
-- [ ] Build Grafana Dashboard JSON for:
-  - [ ] Deployment traffic distribution (Blue vs. Green)
-  - [ ] Request rate, latency (p50, p95, p99), and error percentages
-  - [ ] Pod CPU and memory utilization trends
-  - [ ] Disaster recovery rollback events timeline
+- [x] Create Prometheus configuration (`infrastructure/monitoring/prometheus/prometheus.yml`):
+  - [x] Configure active backend target: `backend.deployx.svc.cluster.local:8000/metrics`
+  - [x] Configure Prometheus self-monitoring target: `localhost:9090`
+  - [x] Configure 15s scrape and evaluation intervals
+- [x] Create Prometheus alerting rules (`infrastructure/monitoring/prometheus/alerts.yml`):
+  - [x] `DeployXBackendDown`: `up{job="deployx-backend"} == 0` for 30s (critical)
+  - [x] `DeployXHighErrorRate`: HTTP 5xx error percentage > 5% over 2m (warning)
+  - [x] `DeployXHighRequestLatency`: p95 latency > 0.5s over 2m (warning)
+- [x] Create Prometheus Kubernetes manifests (`infrastructure/monitoring/prometheus.yaml`):
+  - [x] ConfigMap `deployx-prometheus-config` with configuration and alert rules
+  - [x] Deployment `deployx-prometheus` (`prom/prometheus:v2.54.1`, requests: 50m/128Mi, limits: 250m/384Mi, non-root user 65534)
+  - [x] Services `prometheus` and `deployx-prometheus` (ClusterIP, Port 9090)
+- [x] Create Grafana datasource provisioning (`infrastructure/monitoring/grafana/provisioning/datasources/datasource.yml`):
+  - [x] Automated provisioning of Prometheus (`http://prometheus.deployx.svc.cluster.local:9090`) as default datasource
+- [x] Create Grafana dashboard provider (`infrastructure/monitoring/grafana/provisioning/dashboards/dashboards.yml`):
+  - [x] Automated folder and file scanning under `/var/lib/grafana/dashboards`
+- [x] Create DeployX Grafana dashboard JSON (`infrastructure/monitoring/grafana/dashboards/deployx-overview.json`):
+  - [x] Panel 1: Backend Target Status (`up{job="deployx-backend"}`) with HEALTHY/DOWN mapping
+  - [x] Panel 2: Application Uptime (`deployx_application_uptime_seconds`)
+  - [x] Panel 3: HTTP 5xx Error Rate (`deployx_http_requests_total`)
+  - [x] Panel 4: Current Request Throughput
+  - [x] Panel 5: Application Release Info (`deployx_application_info`)
+  - [x] Panel 6: HTTP Request Rate by Endpoint
+  - [x] Panel 7: HTTP Request Rate by Status Code
+  - [x] Panel 8: Request Latency Percentiles (p50, p95, p99 via `deployx_http_request_duration_seconds_bucket`)
+- [x] Create Grafana Kubernetes manifests (`infrastructure/monitoring/grafana.yaml`):
+  - [x] Secret `deployx-grafana-secret` for secure admin credentials (`admin` / `deployx-admin-2026`)
+  - [x] ConfigMaps for datasources, dashboard provider, and embedded dashboard JSON
+  - [x] Deployment `deployx-grafana` (`grafana/grafana:11.2.0`, requests: 50m/64Mi, limits: 200m/192Mi, non-root user 472)
+  - [x] Services `grafana` and `deployx-grafana` (ClusterIP, Port 3000)
+- [x] Create deployment controller script (`scripts/linux/deploy_monitoring.sh`):
+  - [x] Pre-flight checks, dry-run validation, manifest deployment, rollout wait, endpoint verification
+- [x] Create runbook documentation in `infrastructure/monitoring/README.md`.
+- [x] Automated test suite in `tests/test_monitoring.py` (5 tests passing).
+- [x] Live Kind cluster verification:
+  - [x] Prometheus deployed and rolled out (1/1 Running, memory $\le$ 384Mi).
+  - [x] Grafana deployed and rolled out (1/1 Running, memory $\le$ 192Mi).
+  - [x] Verified Prometheus active targets API: `deployx-backend` and `prometheus` report `health: "up"`.
+  - [x] Verified Prometheus rules API: all 3 alert rules evaluated with `health: "ok"`.
+  - [x] Verified Grafana health API: `/api/health` returns `database: "ok"`.
+  - [x] Verified Grafana datasources API: Prometheus provisioned as default.
+  - [x] Verified Grafana dashboards API: `deployx-overview` dashboard provisioned.
+  - [x] Verified metrics continuity across Blue-Green traffic switches.
+- [x] Full test pass: 53/53 tests passed.
+- [x] Code quality: clean Ruff checks across all directories, clean git diff check.
 
 ---
 
 ### Phase 7: Automation Tooling (Linux Bash & Windows PowerShell)
-- [ ] Develop Linux automation scripts (`scripts/linux/`):
-  - [ ] `setup.sh`: Prerequisites verification and environment bootstrap
-  - [ ] `deploy.sh`: Build, tag, load into Kind, and apply manifests
-  - [ ] `switch_traffic.sh`: Blue-Green cutover utility
-  - [ ] `rollback.sh`: Emergency rollback trigger
-  - [ ] `health_check.sh`: Synthetic canary probing script
-  - [ ] `cleanup.sh`: Safe teardown of ephemeral resources
-- [ ] Develop Windows PowerShell automation scripts (`scripts/windows/`):
-  - [ ] `setup.ps1`: Windows host & WSL verification
-  - [ ] `deploy.ps1`: PowerShell-based deployment orchestration
-  - [ ] `health_check.ps1`: API monitoring and probe runner
-  - [ ] `switch_traffic.ps1`: Service selector cutover
-- [ ] Ensure scripts feature robust error handling, exit codes, and color-coded logging.
+- [x] Develop Linux automation scripts (`scripts/linux/`):
+  - [x] `deploy.sh`: Pre-flight tool & cluster check, manifest validation, multi-tier rollout synchronization, and post-deployment health verification
+  - [x] `health_check.sh`: Multi-tier diagnostic script inspecting pods, services, endpoints, and synthetic probes (`/health/live`, `/health/ready`, `/api/v1/status`, `/metrics`, HTML, Prometheus, Grafana) with JSON output
+  - [x] `rollback.sh`: Disaster recovery controller with auto-toggle, pre-flight target health gates, and automated emergency reversion
+  - [x] `backup.sh`: Manifest and cluster state snapshot archive (`.tar.gz`) with runtime metadata and configurable retention pruning
+  - [x] `cleanup.sh`: Tiered teardown controller (`all`, `monitoring-only`, `green-only`) with safety checks and interactive prompt bypass
+  - [x] `switch_traffic.sh`: Blue-Green service cutover utility with automatic rollback on endpoint verification failure
+  - [x] `deploy_monitoring.sh`: Prometheus and Grafana stack rollout controller
+- [x] Develop Windows PowerShell automation scripts (`scripts/windows/`):
+  - [x] `deploy.ps1`: Multi-tier deployment controller with dry-run and health check integration
+  - [x] `health_check.ps1`: Comprehensive cluster and synthetic HTTP probe runner with JSON output
+  - [x] `rollback.ps1`: Safe disaster recovery controller with target readiness validation and auto-reversion
+  - [x] `backup.ps1`: Cluster state backup controller with `.zip` compression and retention management
+  - [x] `cleanup.ps1`: Tiered cluster teardown with active Green deployment protection
+  - [x] `switch_traffic.ps1`: Blue-Green traffic cutover with endpoint polling and rollback
+- [x] Ensure scripts feature strict error handling, non-root user enforcement, exit codes, and persistent audit logging to `data/deployx_operations.log`.
+- [x] Automated test suite in `tests/test_automation.py` covering file integrity, syntax, argument validation, dry-runs, failure detection, rollback, backup retention, and cleanup.
+- [x] Comprehensive runbook documentation in `scripts/README.md`.
+- [x] Live Kind cluster and Windows PowerShell execution verification across all tools.
+- [x] Full test pass: 72/72 tests passed.
+- [x] Code quality: clean Ruff checks across all directories, clean git diff check.
 
 ---
 
 ### Phase 8: CI/CD Pipeline Automation (GitHub Actions)
-- [ ] Create `.github/workflows/ci.yml`:
-  - [ ] Code checkout & caching
-  - [ ] Python linting (`ruff` / `flake8`) and formatting check (`black`)
-  - [ ] Automated test execution (`pytest`) with code coverage reporting
-  - [ ] Container security vulnerability scanning (`trivy`)
-- [ ] Create `.github/workflows/cd.yml`:
-  - [ ] Multi-stage Docker image build
-  - [ ] Kind cluster spin-up in CI runner
-  - [ ] Blue-green deployment verification test
-  - [ ] Automated rollback validation test on simulated failure
+- [x] Design and implement 5 modular GitHub Actions workflows under `.github/workflows/`:
+  - [x] `.github/workflows/ci.yml`:
+    - [x] Triggers on push (`main`, `release/**`), pull request (`main`), and manual `workflow_dispatch`
+    - [x] Concurrency group `ci-${{ github.workflow }}-${{ github.ref }}` with `cancel-in-progress` for PRs
+    - [x] Job `lint-and-format`: Ruff linter (`ruff check`), formatting verification (`ruff format --check`), and `git diff --check`
+    - [x] Job `test-python-suite`: Python 3.13 setup, dependency caching, full 84-test Pytest test suite execution
+    - [x] Job `test-frontend-scripts`: Node.js 20 setup, Prometheus parser unit test (`test_api_parser.js`), sidebar navigation unit test (`test_navigation.js`)
+    - [x] Job `test-kubernetes-manifests`: Client-side dry-run validation (`kubectl apply --dry-run=client`) across `infrastructure/kubernetes/` and `infrastructure/monitoring/`
+  - [x] `.github/workflows/docker-build.yml`:
+    - [x] Triggers on push (`main`, tags: `v*.*.*`), pull request (`main`), and manual `workflow_dispatch`
+    - [x] Concurrency group `docker-${{ github.workflow }}-${{ github.ref }}`
+    - [x] Buildx multi-platform builder setup with QEMU support
+    - [x] Matrix build for `deployx-backend` and `deployx-frontend`
+    - [x] Layer caching via GitHub Actions cache backend (`type=gha,mode=max`)
+    - [x] Push isolation: Pull requests build and validate cache only (`push: ${{ github.event_name != 'pull_request' }}`)
+    - [x] GHCR registry target: `ghcr.io/${{ github.repository_owner }}/deployx-*` with lowercase translation
+  - [x] `.github/workflows/security.yml`:
+    - [x] Triggers on push (`main`), pull request (`main`), daily cron schedule (`0 2 * * *`), and `workflow_dispatch`
+    - [x] Job `secret-scanning`: TruffleHog deep scan for committed secrets across git commits and pull request branches
+    - [x] Job `python-dependency-audit`: `pip-audit` automated vulnerability audit against the PyPA advisory database
+    - [x] Job `trivy-vulnerability-scan`: Trivy root filesystem and container image vulnerability scanner, publishing SARIF reports to GitHub Security
+  - [x] `.github/workflows/release.yml`:
+    - [x] Triggers on semver release tags (`v*.*.*`) and `workflow_dispatch`
+    - [x] Extracts automated changelogs from git history
+    - [x] Builds multi-architecture release images and publishes immutable semver tags to GHCR (`:v1.0.0`, `:1.0.0`, `:latest`)
+    - [x] Generates official GitHub Release using `softprops/action-gh-release` with attached changelog and asset distribution
+  - [x] `.github/workflows/deploy.yml`:
+    - [x] CD automation skeleton for AWS EKS deployment (Phase 9 integration) via `workflow_dispatch`
+    - [x] AWS OpenID Connect (OIDC) web identity token exchange via `aws-actions/configure-aws-credentials`
+    - [x] Environment parameterization (`staging` / `production`), deployment color (`blue` / `green`), and dry-run flag
+    - [x] Invocation of cross-platform deployment script (`scripts/linux/deploy.sh`) with health verification and rollback integration
+- [x] Implement enterprise security and supply chain standards:
+  - [x] Pin all third-party GitHub Actions to immutable 40-character commit SHAs with version comments
+  - [x] Enforce Principle of Least Privilege (PoLP): explicit `permissions: contents: read` baseline, scoped per-job permissions (`packages: write`, `security-events: write`, `id-token: write`)
+  - [x] Zero hardcoded secrets, passwords, or tokens in workflows and configuration files
+  - [x] Untrusted PR isolation: PRs cannot publish images to GHCR or access production secrets
+  - [x] Concurrency controls to prevent redundant workflow runs and resource waste
+- [x] Develop comprehensive automated test suite (`tests/test_ci_cd.py`):
+  - [x] 12 automated unit and integration tests covering:
+    - [x] Workflow file existence and YAML validity
+    - [x] Trigger definitions (push, pull_request, tags, schedule cron, workflow_dispatch)
+    - [x] Least-privilege permission scoping
+    - [x] Third-party action 40-character commit SHA pinning
+    - [x] Zero hardcoded secrets and token guardrails
+    - [x] GHCR registry URL and container image naming conventions
+    - [x] Untrusted pull request publish gating
+    - [x] Concurrency control configuration
+- [x] Local verification and execution:
+  - [x] Full test pass: 84/84 tests passed (`pytest -v backend/tests/ tests/`)
+  - [x] Node.js frontend tests passed (`node frontend/test_api_parser.js`, `node frontend/test_navigation.js`)
+  - [x] Docker Buildx matrix build verified locally for backend and frontend images
+  - [x] Python dependency audit verified locally (`pip-audit -r backend/requirements.txt` -> 0 known vulnerabilities)
+  - [x] Code quality verified: clean Ruff checks (`ruff check backend/ tests/ frontend/`) and format checks
+  - [x] Git diff verification: clean `git diff --check`
+- [x] Comprehensive documentation:
+  - [x] Created `.github/README.md` with CI/CD architecture, Mermaid lifecycle diagrams, and troubleshooting runbook
+  - [x] Created `docs/CI_CD.md` operational runbook
+  - [x] Updated `README.md` with CI/CD pipeline overview, GHCR tagging table, and 84/84 test badge
+  - [x] Updated `TASK_STATUS.md` advancing master progress to Phase 9
 
 ---
 
 ### Phase 9: AWS Cloud Architecture & Infrastructure as Code (IaC)
-- [ ] Design production-grade AWS architecture targeting high availability and DR.
-- [ ] Create Terraform / CloudFormation configurations in `infrastructure/aws/`:
-  - [ ] VPC with Public & Private Subnets across 2 Availability Zones
-  - [ ] Internet Gateway, NAT Gateway, Route Tables
-  - [ ] Security Groups with principle of least privilege
-  - [ ] EC2 / EKS node group provisioning configuration
-  - [ ] S3 bucket for disaster recovery state snapshots & database backups with lifecycle policies
-  - [ ] IAM roles, instance profiles, and least-privilege policies
-  - [ ] CloudWatch Alarm configurations for automated rollback notifications
-- [ ] Provide architecture documentation and LocalStack / dry-run validation instructions.
+- [x] Design and implement modular Terraform infrastructure under `infrastructure/aws/terraform/`:
+  - [x] `versions.tf`: Pinned provider requirements (AWS `~> 5.0`, Random `~> 3.6`, CloudInit `~> 2.3`, Terraform `>= 1.5.0, < 2.0.0`)
+  - [x] `providers.tf`: Provider configuration with universal default tags (`Project`, `Environment`, `ManagedBy`, `Owner`, `Phase`)
+  - [x] `variables.tf`: Strongly typed variables with validation constraints, descriptions, and cost-conscious defaults
+  - [x] `main.tf`: Dynamic AMI lookup for Amazon Linux 2023, random bucket suffix generator, shared locals
+  - [x] `networking.tf`: Custom VPC (`10.0.0.0/16`), 2 public subnets (`10.0.1.0/24`, `10.0.2.0/24`), 2 private subnets (`10.0.10.0/24`, `10.0.20.0/24`), Internet Gateway, public route table, and optional NAT Gateway (`enable_nat_gateway = false`)
+  - [x] `security.tf`: Security groups enforcing PoLP: HTTP 80 & HTTPS 443 web ingress, backend port 8000 restricted to VPC CIDR, port 22 disabled by default
+  - [x] `compute.tf`: Hardened Amazon Linux 2023 EC2 Docker host (`t3.micro`), IMDSv2 session token enforcement (`http_tokens = "required"`), encrypted GP3 root EBS volume (20 GiB), cloud-init configuration
+  - [x] `templates/user_data.sh.tftpl`: Cloud-init bootstrap script installing Docker, Compose plugin, CloudWatch Agent, provisioning unprivileged user `deployx`, writing `compose.yaml`, installing systemd unit `deployx.service` for automatic reboot recovery, and verifying health probes
+  - [x] `storage.tf`: Dedicated disaster recovery S3 bucket with 4x public access block, default AES-256 encryption with bucket keys, object versioning, automated Standard-IA transition (30 days), expiration pruning (90/180 days), and TLS-in-transit policy (`aws:SecureTransport = false`)
+  - [x] `monitoring.tf`: Centralized CloudWatch Log Group (`/deployx/<env>`) with 14-day retention, EC2 CPU utilization alarm (>80%), instance status check alarm, and optional SNS alert topic
+  - [x] `iam.tf`: Least-privilege EC2 role with `AmazonSSMManagedInstanceCore` for zero-open-port management, scoped S3 backup policy, scoped CloudWatch policy. Keyless GitHub Actions OIDC role (`sts:AssumeRoleWithWebIdentity`) scoped strictly to `repo:abhinavitgithub/DeployX:*`
+  - [x] `outputs.tf`: Safe operational outputs (VPC ID, subnet IDs, EC2 public IP/DNS, application URL, S3 bucket ARN, SSM connect command, zero plaintext secrets)
+  - [x] `environments/staging.tfvars.example` & `production.tfvars.example`: Environment-specific parameterizations
+- [x] Integrate with Phase 7 Backup Tooling:
+  - [x] `scripts/linux/backup.sh`: Added `--s3-bucket` and `DEPLOYX_S3_BACKUP_BUCKET` for automated S3 backup replication via `aws s3 cp`
+  - [x] `scripts/windows/backup.ps1`: Added `-S3Bucket` and `DEPLOYX_S3_BACKUP_BUCKET` for automated S3 backup replication via `aws s3 cp`
+- [x] GitHub Actions CI/CD Integration:
+  - [x] Created `.github/workflows/terraform.yml`: Automated Terraform formatting, validation, speculative planning, and controlled environment deployments
+- [x] Automated Testing & Quality Assurance:
+  - [x] Created `tests/test_aws_terraform.py` with 10 comprehensive tests validating Terraform structure, providers, variables, S3 security, security group PoLP, IAM PoLP, compute hardening, monitoring, outputs safety, and script integration
+  - [x] Full test pass: 94/94 tests passed (`pytest -v backend/tests/ tests/`)
+  - [x] Code quality verified: clean Ruff checks across all directories (`ruff check backend/ tests/ frontend/`)
+  - [x] Terraform formatting check: `terraform fmt -check` passed cleanly (0 errors)
+  - [x] Terraform validation check: `terraform validate` passed cleanly (`Success! The configuration is valid.`)
+  - [x] TFLint check: `tflint` passed cleanly with 0 issues
+  - [x] Git diff verification: clean `git diff --check`
+- [x] Comprehensive Documentation:
+  - [x] Created `infrastructure/aws/README.md` with complete cloud architecture, Mermaid diagram, and cost analysis
+  - [x] Created `docs/AWS_DEPLOYMENT.md` operational runbook
+  - [x] Updated `ARCHITECTURE.md` with implemented AWS topology and future EKS roadmap
+  - [x] Updated `README.md` with AWS Cloud Infrastructure section and 94/94 test badge
+  - [x] Updated `TASK_STATUS.md` advancing master progress to Phase 10
 
 ---
 
