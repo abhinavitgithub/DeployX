@@ -18,7 +18,7 @@ def test_status_endpoint_returns_expected_fields(client: TestClient) -> None:
     assert data["app_name"] == settings.APP_NAME
     assert data["version"] == settings.APP_VERSION
     assert data["environment"] == settings.APP_ENV
-    assert isinstance(data["uptime_seconds"], (int, float))
+    assert isinstance(data["uptime_seconds"], int | float)
     assert data["uptime_seconds"] >= 0.0
     assert data["process_status"] == "running"
     assert data["readiness_status"] == "ready"
